@@ -1,0 +1,324 @@
+---
+title: "Behavioral Proximity Models & fMRI Activity Modulation"
+author: "MW"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+---
+# Proximity Results
+### This file is to analyze MARCER data's proximity 
+Notes: 
+dACC parcel IDs: 
+7Networks_LH_SalVentAttn_Med_1 P107
+7Networks_LH_SalVentAttn_Med_2 P108
+7Networks_LH_SalVentAttn_Med_4 P110
+7Networks_RH_SalVentAttn_Med_1 P311
+7Networks_RH_SalVentAttn_Med_2 P312
+I plan to first look at them separately and then combine it all together. 
+In the coged behavioral file, starting trial 46 is the first run of coged. 
+```{r setup, warning=FALSE, message=FALSE}
+rm(list=ls())
+#Packages
+library(RNifti);library(boxr);
+box_auth(); 
+wustl.box <- TRUE;
+library(lme4); library(knitr); library(rlang)
+options(warnPartialMatchDollar=TRUE);   # safety option
+fMRI.path <- "/scratch2/weie/COGED_CODE/np2_trial/np2trialwise/"
+out.path <-"/scratch2/weie/COGED_CODE/np2_trial/np2analysis/"
+atlas.path <- "/data/MARCER/ATLASES/";  
+afni.path <- "/usr/local/pkg/afni_22/";   # path to the afni function executables
+dir.desc <- "20230714test";  
+sub.tbl <- read.table(paste0("/scratch2/weie/COGED_CODE/", dir.desc, "_subjectSet.txt"), stringsAsFactors=FALSE);
+sub.ids <- sub.tbl$sub.id[which(sub.tbl$COGED_CatchNonCatch == TRUE)]
+behavior.path <- box_ls('148056179835') 
+time.ids <- c("eval","dm")
+parcel.ids <- c(107,108,110,311,312)
+```
+
+```{r dataset, eval=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
+#Compile a dataset with all choice behavior, proximity, and fMRI activity
+col.names <- c("subID","trial","RT","choice","Task","proximity","reward","eval.107","eval.108","eval.110","eval.311","eval.312","dm.107","dm.108","dm.110","dm.311","dm.312","eval.dACC","dm.dACC")
+tbl.all <- array(NA,c(36*3*length(sub.ids), length(col.names)), dimnames=list(NULL,col.names))
+tbl.all[,1] <- rep(sub.ids,each = 108)
+tbl.all[,2] <- rep(1:108)
+for (sid in 1:length(sub.ids)) { #sid <- 1
+  file.name <- paste0("coged-MARCER-fMRI-",sub.ids[sid],"-converted.csv")
+  file.id <- box_search(file.name)
+  behavior.data <- box_read(file.id)
+  tbl.all[((sid-1)*108+1):(108*sid),(3:7)] <- as.matrix(behavior.data[46:153,c("choiceRT","choice","hardTask","proximityValue","rewardAmount")])
+  for (tid in 1:length(time.ids)) { # tid<-1
+    fMRI.table <- read.delim(paste0(fMRI.path, "COGED_np2_trialwise_", time.ids[tid], "_sub", sub.ids[sid], ".txt"),header=FALSE)
+    tbl.all[((sid-1)*108+1):(108*sid),(8+5*(tid-1)):(12+5*(tid-1))] <- as.matrix(fMRI.table[,parcel.ids])
+    tbl.all[((sid-1)*108+1):(108*sid),(18+tid-1)] <- apply(fMRI.table[,parcel.ids], 1, mean, na.rm=TRUE)
+  }
+}
+write.table(tbl.all,file = paste0(out.path, "COGED_trialwise_data.txt"), sep = "\t", row.names = FALSE, col.names = TRUE)
+
+# # We need to mutate: 
+# WM.coged.fmri %>% filter(trial > 45) %>% filter(choice != 9) %>%
+#   mutate(choseHard = if_else((choice == 1), 0, 1), #choose 1 is easy, choose 2 is hard, choose 9 is NA
+
+```
+
+
+```{r choice_activity, warning=FALSE, message=FALSE}
+# Behavioral choice model
+data <- read.delim(paste0(out.path, "COGED_trialwise_data.txt"), header = TRUE)
+library(tidyverse)
+install.packages("tidyverse")
+behavior <- data[data$choice !=9, ] 
+behavior$choiceCode <- ifelse(behavior$choice ==1, 1, 0) #1 is choosing easy, 2 is choosing hard. So after recoding, 1 is easy, 0 is hard.
+  mutate (choiceCode = if_else(choice == 1, 1, 0),
+         loadCode = factor(Task, levels = c(1,2,3), labels = c(-1,0,1)),
+         rewardCode = factor(reward, levels = c(2,3,4), labels = c(-1,0,1)))
+behavior$loadCode <- as.numeric(as.character(behavior$loadCode))
+behavior$rewardCode <- as.numeric(as.character(behavior$rewardCode))
+
+dm~proximity+(1|PID)
+choice~eval+dm+proximity+Task+Reward+(1|PID)
+```
+
+
+## Choice Behavior as a function of proximity
+### Working Memory
+
+```{r WM_bx_Prox, warning=F, message=F}
+#clean data frame with Cog-ED choice behavior
+##working memory
+d.coged.wm <- coged.wm %>% select(subID, trial, choice, proximityValue, rewardAmount, hardTask) %>% filter(trial > 45) %>%
+  filter(choice != 9) %>%
+  mutate(choiceCode = if_else(choice == 1, 1, 0),
+         Domain = "WM",
+         loadCode = factor(hardTask, levels = c(1,2,3), labels = c(-1,0,1)),
+         rewardCode = factor(rewardAmount, levels = c(2,3,4), labels = c(-1,0,1)))
+d.coged.wm$loadCode <- as.numeric(as.character(d.coged.wm$loadCode))
+d.coged.wm$rewardCode <- as.numeric(as.character(d.coged.wm$rewardCode))
+#choice model
+m.wm.prox.choice <- glmer(data = d.coged.wm, choiceCode ~ proximityValue + rewardCode + loadCode + (proximityValue|subID), family = "binomial")
+summary(m.wm.prox.choice)
+wm.prox.choice <- coef(m.wm.prox.choice)
+wm.prox.choice.slopes <- wm.prox.choice[["subID"]] %>% rownames_to_column(var = "subID") %>% rename(proxSlope = proximityValue)
+wm.prox.choice.slopes$subID <- as.numeric(wm.prox.choice.slopes$subID)
+#creating SV variable
+wm.SV <- wm.prox.choice.slopes %>%
+  mutate(SV = -1*(`(Intercept)`/proxSlope))
+kable(wm.SV)
+```
+
+### Speech
+
+```{r SP_bx_Prox, warning=FALSE, message=FALSE}
+##speech
+d.coged.speech <- coged.speech %>% select(subID, trial, choice, proximityValue, rewardAmount, hardTask) %>%
+  filter(trial > 45) %>% filter(choice != 9) %>%
+  mutate(choiceCode = if_else(choice == 1, 1, 0),
+         Domain = "SP",
+         loadCode = factor(hardTask, levels = c(1,2,3), labels = c(-1,0,1)),
+         rewardCode = factor(rewardAmount, levels = c(2,3,4), labels = c(-1,0,1)))
+d.coged.speech$loadCode <- as.numeric(as.character(d.coged.speech$loadCode))
+d.coged.speech$rewardCode <- as.numeric(as.character(d.coged.speech$rewardCode))
+#choice model
+m.sp.prox.choice <- glmer(data = d.coged.speech, choiceCode ~ proximityValue + rewardCode + loadCode + (proximityValue|subID), family = "binomial")
+summary(m.sp.prox.choice)
+sp.prox.choice <- coef(m.sp.prox.choice)
+sp.prox.choice.slopes <- sp.prox.choice[["subID"]] %>% rownames_to_column(var = "subID") %>% rename(proxSlope = proximityValue)
+sp.prox.choice.slopes$subID <- as.numeric(sp.prox.choice.slopes$subID)
+#creating SV variable
+sp.SV <- sp.prox.choice.slopes %>%
+  mutate(SV = -1*(`(Intercept)`/proxSlope))
+kable(sp.SV)
+```
+
+### Both Working Memory & Speech
+
+```{r bx_Prox, warning=FALSE, message=FALSE}
+#combining estimates into a single model across both domains
+d.coged <- rbind(d.coged.wm, d.coged.speech) %>%
+  mutate(domainCode = factor(Domain, levels = c("WM","SP"), labels = c(0,1)),
+         loadCode = factor(hardTask, levels = c(1,2,3), labels = c(-1,0,1)),
+         rewardCode = factor(rewardAmount, levels = c(2,3,4), labels = c(-1,0,1)))
+d.coged$domainCode <- as.numeric(as.character(d.coged$domainCode))
+d.coged$loadCode <- as.numeric(as.character(d.coged$loadCode))
+d.coged$rewardCode <- as.numeric(as.character(d.coged$rewardCode))
+
+#choice model
+m.prox.choice <- glmer(data = d.coged, choiceCode ~ proximityValue + domainCode + rewardCode + loadCode + (proximityValue|subID), family = "binomial")
+summary(m.prox.choice)
+prox.choice <- coef(m.prox.choice)
+prox.choice.slopes <- prox.choice[["subID"]] %>% rownames_to_column(var = "subID") %>% rename(proxSlope = proximityValue)
+prox.choice.slopes$subID <- as.numeric(prox.choice.slopes$subID)
+#creating SV variable
+d.SV <- prox.choice.slopes %>%
+  mutate(SV = -1*(`(Intercept)`/proxSlope))
+kable(d.SV)
+```
+
+# fMRI Proximity modulation
+
+```{r prox, warning=FALSE, message=FALSE}
+#N-Back Cog-ED
+nback.sph <- nback.spheres %>% rename("region" = cifti.name) %>%
+  group_by(subID, tent, region) %>%
+  mutate(tent = tent+1) %>% group_by(tent, condition, region) %>%
+  summarise(meanValue = mean(value))
+
+nback.sph.prox <- nback.spheres %>% filter(condition == "valProx") %>% rename("region" = cifti.name) %>%
+  group_by(subID, tent, region) %>%
+  mutate(tent = tent+1) %>%
+  summarise(meanValue = mean(value)) %>% mutate(Domain = "WM")
+
+nback.sph.meanResp <- nback.spheres %>% filter(condition == "meanResp") %>% rename("region" = cifti.name) %>%
+  group_by(subID, tent, region) %>%
+  mutate(tent = tent+1) %>%
+  summarise(meanValue = mean(value)) %>% mutate(Domain = "WM")
+
+speech.sph <- speech.spheres %>% rename("region" = cifti.name) %>%
+  group_by(subID, tent, region) %>%
+  mutate(tent = tent+1) %>% group_by(tent, condition, region) %>%
+  summarise(meanValue = mean(value))
+
+speech.sph.prox <- speech.spheres %>% filter(condition == "valProx") %>% rename("region" = cifti.name) %>%
+  group_by(subID, tent, region) %>%
+  mutate(tent = tent+1) %>%
+  summarise(meanValue = mean(value)) %>% mutate(Domain = "SP")
+
+speech.sph.meanResp <- speech.spheres %>% filter(condition == "meanResp") %>% rename("region" = cifti.name) %>%
+  group_by(subID, tent, region) %>%
+  mutate(tent = tent+1) %>%
+  summarise(meanValue = mean(value)) %>% mutate(Domain = "SP")
+
+sph.prox <- rbind(nback.sph.prox, speech.sph.prox)
+sph.prox.dACC.dmPFC <- sph.prox %>% filter(region == "dACC"|region == "dmPFC") %>% filter(tent == 6)
+sph.meanResp <- rbind(nback.sph.meanResp, speech.sph.meanResp)
+```
+
+### Proximity modulation and behavioral choice patterns
+### dACC
+
+```{r prox_dACC_choice, warning=FALSE, message=FALSE}
+#tent 6
+prox.Tent6.dACC<- sph.prox %>% filter(tent == 6) %>% filter(region %in% c("dACC")) %>%
+  group_by(subID) %>% summarise(meanValue = mean(meanValue))
+
+prox.chc.fMRI <- inner_join(prox.choice.slopes, prox.Tent6.dACC)
+
+#Correlations between proximity modulation and behavioral choice patterns
+##Tent 6
+dACC.prox.cor <- cor_test(data = prox.chc.fMRI, x = "meanValue", y = "proxSlope")
+dACC.prox.cor
+
+#plot
+prox.cor <- visualisation_recipe(dACC.prox.cor, labs = list(x = "dACC Proximity Modulation", y = "Proximity Slope"))
+p.prox.cor.dacc <- plot(prox.cor) + theme_classic() + labs(title = "Both Working Memory & Speech Domains")
+p.prox.cor.dacc
+
+#working memory
+#tent 6
+wm.prox.Tent6.dACC<- nback.sph.prox %>% filter(tent == 6) %>% filter(region %in% c("dACC")) %>%
+  group_by(subID) %>% summarise(meanValue = mean(meanValue))
+
+wm.prox.chc.fMRI <- inner_join(wm.prox.choice.slopes, wm.prox.Tent6.dACC)
+
+#Correlations between proximity modulation and behavioral choice patterns
+##Tent 6
+dACC.wm.prox.cor <- cor_test(data = wm.prox.chc.fMRI, x = "meanValue", y = "proxSlope")
+dACC.wm.prox.cor
+
+#plot
+wm.prox.cor <- visualisation_recipe(dACC.wm.prox.cor, labs = list(x = "dACC Proximity Modulation", y = "Proximity Slope"))
+p.wm.prox.cor <- plot(wm.prox.cor) + theme_classic() + labs(title = "Working Memory Domain")
+p.wm.prox.cor
+
+#speech
+#tent 6
+sp.prox.Tent6.dACC<- speech.sph.prox %>% filter(tent == 6) %>% filter(region %in% c("dACC")) %>%
+  group_by(subID) %>% summarise(meanValue = mean(meanValue))
+
+sp.prox.chc.fMRI <- inner_join(sp.prox.choice.slopes, sp.prox.Tent6.dACC)
+
+#Correlations between proximity modulation and behavioral choice patterns
+##Tent 6
+dACC.sp.prox.cor <- cor_test(data = sp.prox.chc.fMRI, x = "meanValue", y = "proxSlope")
+dACC.sp.prox.cor
+
+#plot
+sp.prox.cor <- visualisation_recipe(dACC.sp.prox.cor, labs = list(x = "dACC Proximity Modulation", y = "Proximity Slope"))
+p.sp.prox.cor <- plot(sp.prox.cor) + theme_classic() + labs(title = "Speech Domain")
+p.sp.prox.cor
+```
+
+### dmPFC
+
+```{r prox_dmPFC_choice, warning=FALSE, message=FALSE}
+#tent 6
+prox.Tent6.dmPFC<- sph.prox %>% filter(tent == 6) %>% filter(region %in% c("dmPFC")) %>%
+  group_by(subID) %>% summarise(meanValue = mean(meanValue))
+
+prox.chc.fMRI <- inner_join(prox.choice.slopes, prox.Tent6.dmPFC)
+
+#Correlations between proximity modulation and behavioral choice patterns
+##Tent 6
+dmPFC.prox.cor <- cor_test(data = prox.chc.fMRI, x = "meanValue", y = "proxSlope")
+dmPFC.prox.cor
+
+#plot
+prox.cor <- visualisation_recipe(dmPFC.prox.cor, labs = list(x = "dmPFC Proximity Modulation", y = "Proximity Slope"))
+p.prox.cor.dmpfc <- plot(prox.cor) + theme_classic() + labs(title = "Both Working Memory & Speech Domains")
+p.prox.cor.dmpfc
+
+#working memory
+#tent 6
+wm.prox.Tent6.dmPFC<- nback.sph.prox %>% filter(tent == 6) %>% filter(region %in% c("dmPFC")) %>%
+  group_by(subID) %>% summarise(meanValue = mean(meanValue))
+
+wm.prox.chc.fMRI <- inner_join(wm.prox.choice.slopes, wm.prox.Tent6.dmPFC)
+
+#Correlations between proximity modulation and behavioral choice patterns
+##Tent 6
+dmPFC.wm.prox.cor <- cor_test(data = wm.prox.chc.fMRI, x = "meanValue", y = "proxSlope")
+dmPFC.wm.prox.cor
+
+#plot
+wm.prox.cor <- visualisation_recipe(dmPFC.wm.prox.cor, labs = list(x = "dmPFC Proximity Modulation", y = "Proximity Slope"))
+p.wm.prox.cor <- plot(wm.prox.cor) + theme_classic() + labs(title = "Working Memory Domain")
+p.wm.prox.cor
+
+#speech
+#tent 6
+sp.prox.Tent6.dmPFC<- speech.sph.prox %>% filter(tent == 6) %>% filter(region %in% c("dmPFC")) %>%
+  group_by(subID) %>% summarise(meanValue = mean(meanValue))
+
+sp.prox.chc.fMRI <- inner_join(sp.prox.choice.slopes, sp.prox.Tent6.dmPFC)
+
+#Correlations between proximity modulation and behavioral choice patterns
+##Tent 6
+dmPFC.sp.prox.cor <- cor_test(data = sp.prox.chc.fMRI, x = "meanValue", y = "proxSlope")
+dmPFC.sp.prox.cor
+
+#plot
+sp.prox.cor <- visualisation_recipe(dmPFC.sp.prox.cor, labs = list(x = "dmPFC Proximity Modulation", y = "Proximity Slope"))
+p.sp.prox.cor <- plot(sp.prox.cor) + theme_classic() + labs(title = "Speech Domain")
+p.sp.prox.cor
+```
+
+## Adding dmPFC and dACC activity into logistic regression model predicting choice 
+
+```{r choice_fMRI, message=FALSE, warning=FALSE}
+d.coged.fmri <- d.coged %>% inner_join(sph.prox.dACC.dmPFC)
+d.coged.fmri.dACC <- d.coged.fmri %>% filter(region == "dACC")
+d.coged.fmri.dmPFC <- d.coged.fmri %>% filter(region == "dmPFC")
+
+#choice model--dACC
+m.prox.choice.dACC <- glmer(data = d.coged.fmri.dACC, choiceCode ~ proximityValue + domainCode + rewardCode + loadCode + meanValue + (proximityValue|subID), family = "binomial")
+summary(m.prox.choice.dACC)
+
+#choice model--dmPFC
+m.prox.choice.dmPFC <- glmer(data = d.coged.fmri.dmPFC, choiceCode ~ proximityValue + domainCode + rewardCode + loadCode + meanValue + (proximityValue|subID), family = "binomial")
+summary(m.prox.choice.dmPFC)
+
+
+
+
+
+```
