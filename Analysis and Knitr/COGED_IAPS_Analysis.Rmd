@@ -1,0 +1,117 @@
+---
+title: "COGED and IAPS Analysis"
+author: "Mengzhe Wei, Chris Gu, Todd Braver"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: journal
+    toc: yes
+    toc_float:
+      collapsed: true
+---
+
+# Cross-Subject Correlations in Cog-ED and IAPS
+Notes: Started 16 Sep 2024 by Mengzhe Wei to run analysis looking at activities during COGED and IAPS. 
+
+### Does the response to positive affect (LookPos-LookNeu) in IAPS correlate with the response to increasing reward amount in the CogED (Rew4-Rew2)? 
+Does one's response in IAPS to predict their response in the CogED (scatterplot). Note that for CogED we are only looking at evaluation period in GLMs (3-5s), and for IAPS we are looking at GLM activity from 9s to 11s. 
+Key ROIs:
+vmPFC (https://doi.org/10.1016/j.neuropsychologia.2022.108303):
+168	7Networks_LH_Default_PFC_3	
+169	7Networks_LH_Default_PFC_4	
+173	7Networks_LH_Default_PFC_8	
+174	7Networks_LH_Default_PFC_9	
+379	7Networks_RH_Default_PFCdPFCm_1
+380	7Networks_RH_Default_PFCdPFCm_2
+381	7Networks_RH_Default_PFCdPFCm_3
+382	7Networks_RH_Default_PFCdPFCm_4
+Ventral Striatum: Accumbens, Putamen
+
+### Set up
+```{r setup, eval=TRUE, echo=TRUE, warning=FALSE, message=FALSE}
+#basic setup
+rm(list=ls())
+options(warnPartialMatchDollar=TRUE);   # safety option
+library(RNifti); library(lme4); library(knitr); library(dplyr); #Packages
+in.path <- "/scratch2/weie/COGED_CODE/MW+CG_IAPSCOGED/"
+out.path <-"/scratch2/weie/COGED_CODE/MW+CG_IAPSCOGED/"
+dir.desc <- "20230714test";  
+sub.tbl <- read.table(paste0("/scratch2/weie/COGED_CODE/", dir.desc, "_subjectSet.txt"), stringsAsFactors=FALSE);
+sub.ids <- sub.tbl$sub.id[which(sub.tbl$COGED_CatchNonCatch == TRUE)]
+#select data needed for analysis
+schaefer.parcel.ids <- c(168,169,173,174,379,380,381,382)
+schaefer.parcel.ids <- paste0("p", schaefer.parcel.ids)
+subcortical.parcel.ids <- c("accumbensL","accumbensR","putamenL","putamenR")
+COGED <- read.delim(paste0(in.path, "COGED_Rew4_Rew2_Eval.txt"),header=TRUE)
+IAPS <- read.delim(paste0(in.path, "IAPS_LookPos_LookNeu_9to11.txt"),header=TRUE)
+COGED.ROI <-COGED[,c("subID", subcortical.parcel.ids, schaefer.parcel.ids)]
+IAPS.ROI <-IAPS[,c("SubID", subcortical.parcel.ids, schaefer.parcel.ids)]  #little note to MW here, Chris capitalized subID.
+colnames(IAPS.ROI)[colnames(IAPS.ROI) == "SubID"] <- "subID"
+data <- merge(COGED.ROI, IAPS.ROI, by = "subID",suffixes = c("_rew", "_pos"))
+data$vmpfc_rew <- apply(data[,paste0(schaefer.parcel.ids,"_rew")], 1, mean, na.rm=TRUE)
+data$vmpfc_pos <- apply(data[,paste0(schaefer.parcel.ids,"_pos")], 1, mean, na.rm=TRUE)
+```
+
+### Scatter plot
+```{r scatterplot, eval=TRUE, echo=TRUE, warning=FALSE, message=FALSE}
+layout(matrix(1:15, 5,3, byrow=TRUE)); 
+par(mar = c(2, 2, 2, 1), mgp = c(1.1, 0.2, 0), tcl = -0.3);
+
+# loop through subcortical parcels
+for (i in 1:length(subcortical.parcel.ids)) { #i<-1
+  # Generate scatter plot for Schaefer parcels
+  plot(
+    data[[paste0(subcortical.parcel.ids[i], "_rew")]], 
+    data[[paste0(subcortical.parcel.ids[i], "_pos")]], 
+    xlab = "Rew4-Rew2", 
+    ylab = "Pos-Neu", 
+    main = subcortical.parcel.ids[i], 
+    pch = 16, col = "darkgreen"
+  )
+  abline(lm(data[[paste0(subcortical.parcel.ids[i], "_rew")]]~data[[paste0(subcortical.parcel.ids[i], "_pos")]]))
+}
+
+# loop through schaefer parcels
+for (i in 1:length(schaefer.parcel.ids)) { #i<-1
+  # Generate scatter plot for Schaefer parcels
+  plot(
+    data[[paste0(schaefer.parcel.ids[i], "_rew")]], 
+    data[[paste0(schaefer.parcel.ids[i], "_pos")]], 
+    xlab = "Rew4-Rew2", 
+    ylab = "Pos-Neu", 
+    main = schaefer.parcel.ids[i], 
+    pch = 16, col = "darkgreen"
+  )
+  abline(lm(data[[paste0(schaefer.parcel.ids[i], "_rew")]]~data[[paste0(schaefer.parcel.ids[i], "_pos")]]))
+}
+
+#Graph the one mega parcel
+plot(
+    data[["vmpfc_rew"]], 
+    data[["vmpfc_pos"]], 
+    xlab = "Rew4-Rew2", 
+    ylab = "Pos-Neu", 
+    main = "vmPFC mega parcel", 
+    pch = 16, col = "darkgreen"
+  )
+abline(lm(data[["vmpfc_rew"]]~data[["vmpfc_pos"]]))
+par(mfrow = c(1, 1))
+```
+
+### Regression
+```{r regression, warning=FALSE, message=FALSE}
+for (i in 1:length(subcortical.parcel.ids)) {
+regression<-lm(data[[paste0(subcortical.parcel.ids[i], "_pos")]]~data[[paste0(subcortical.parcel.ids[i], "_rew")]])
+message(paste0(subcortical.parcel.ids[i]), " simple linear regression model")
+print(summary(regression))
+}
+for (i in 1:length(schaefer.parcel.ids)) {
+regression<-lm(data[[paste0(schaefer.parcel.ids[i], "_pos")]]~data[[paste0(schaefer.parcel.ids[i], "_rew")]])
+message(paste0(schaefer.parcel.ids[i]), " simple linear regression model")
+print(summary(regression))
+}
+regression<-lm(data[["vmpfc_pos"]]~data[["vmpfc_rew"]])
+summary(regression)
+```
+
+
