@@ -99,7 +99,7 @@ par(mfrow = c(1, 1))
 ```
 
 ### Regression
-```{r regression, warning=FALSE, message=FALSE}
+```{r regression, warning=FALSE, message=TRUE}
 for (i in 1:length(subcortical.parcel.ids)) {
 regression<-lm(data[[paste0(subcortical.parcel.ids[i], "_pos")]]~data[[paste0(subcortical.parcel.ids[i], "_rew")]])
 message(paste0(subcortical.parcel.ids[i]), " simple linear regression model")
