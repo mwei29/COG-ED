@@ -16,6 +16,7 @@ dACC parcel IDs:
 7Networks_RH_SalVentAttn_Med_2 P312
 I plan to first look at them separately and then combine it all together. 
 In the coged behavioral file, starting trial 46 is the first run of coged. 
+In this file, which I call the general fMRI choice, I also included many dataset making, not just for the trialwise analysis, but for all the other raw input data file too. 
 ```{r setup, warning=FALSE, message=FALSE}
 rm(list=ls())
 #Packages
@@ -35,8 +36,8 @@ time.ids <- c("eval","dm")
 parcel.ids <- c(107,108,110,311,312)
 ```
 
-```{r dataset, eval=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
-#Compile a dataset with all choice behavior, proximity, and fMRI activity
+```{r dataset trialwise, eval=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
+##### Compile a dataset with all choice behavior, proximity, and fMRI activity. This is just for dACC parcels.
 col.names <- c("subID","trial","RT","choice","Task","proximity","reward","eval.107","eval.108","eval.110","eval.311","eval.312","dm.107","dm.108","dm.110","dm.311","dm.312","eval.dACC","dm.dACC")
 tbl.all <- array(NA,c(36*3*length(sub.ids), length(col.names)), dimnames=list(NULL,col.names))
 tbl.all[,1] <- rep(sub.ids,each = 108)
@@ -53,8 +54,11 @@ for (sid in 1:length(sub.ids)) { #sid <- 1
   }
 }
 write.table(tbl.all,file = paste0(out.path, "COGED_trialwise_data.txt"), sep = "\t", row.names = FALSE, col.names = TRUE)
+```
 
-#####Compile a different version with everything so that we can later make a correlation with IAPS. This part of code was not on git. I ran it only on the server.
+```{r dataset 400, eval=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
+##### Compile a different version with everything so that we can later make a correlation with IAPS. This part of code was not on git. I ran it only on the server. Now the general version is on git, to prep. 
+#This one has all 400 parcels
 parcel.ids.all <- 1:400
 fixed_names <- c("subID", "trial", "RT", "choice", "Task", "proximity", "reward")
 eval_names <- paste0("eval", 1:400)
@@ -72,8 +76,11 @@ for (sid in 1:length(sub.ids)) { #sid <- 1
 write.table(tbl.all,file = paste0(out.path, "COGED_trialwise_data_full.txt"), sep = "\t", row.names = FALSE, col.names = TRUE)
 data <- read.delim(paste0(out.path, "COGED_trialwise_data_full.txt"), header = TRUE)
 head(data)
+```
 
+```{r dataset GLM, eval=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
 ######Compile a different version with reward activity (highrew-lowrew) with GLM data
+#This one should have all subcoritcal and schaefer parcels
 out.path <- "/scratch2/weie/COGED_CODE/MW+CG_IAPSCOGED/"
 atlas.path <- "/data/MARCER/ATLASES/";  
 out.dirname <- paste0("/scratch2/weie/COGED_CODE/Stats/");   # top-level output directory for this particular analysis
@@ -148,7 +155,7 @@ write.table(tbl.all,file = paste0(out.path, "COGED_Rew4_Rew2_Eval.txt"), sep = "
 # Behavioral choice model
 data <- read.delim(paste0(out.path, "COGED_trialwise_data.txt"), header = TRUE)
 library(tidyverse)
-install.packages("tidyverse") #Starting here I was having issue with tidyverse, so this part of code is only updated in GIT. I ran it locally.
+install.packages("tidyverse") #Starting here I was having issue with tidyverse, so this part of code is only updated in GIT. I ran it locally. Now that I am thinking aboout it maybe I can just use dyplr on the server. 
 behavior <- data[data$choice !=9, ] 
 behavior$choiceCode <- ifelse(behavior$choice ==1, 1, 0) #1 is choosing easy, 2 is choosing hard. So after recoding, 1 is easy, 0 is hard.
   mutate (choiceCode = if_else(choice == 1, 1, 0),
