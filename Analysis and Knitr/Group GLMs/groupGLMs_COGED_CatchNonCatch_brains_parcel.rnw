@@ -1,0 +1,614 @@
+\documentclass{article}
+\addtolength{\oddsidemargin}{-1.25in}
+\addtolength{\evensidemargin}{-1.25in}
+\addtolength{\textwidth}{2.5in}
+\addtolength{\topmargin}{-.875in}
+\addtolength{\textheight}{1.75in}
+\begin{document}
+
+<<startup, echo=FALSE, message=FALSE>>=
+# MARCER fMRI tasks, COGED CatchNonCatch GLM results, parcel average: group version
+# started 28 September 2023 by Emily Wei, Adapting from Jo's IAPS CueType Group GLMs
+
+# NOTE: this knitr has code to display group brain images, not calculate them. The group average images (parcel)
+# are made with /data/MARCER/CODE/groupGLMs/makeGroupParcelStats.R (Not on Git yet)
+
+
+library(RNifti);  # volumes
+
+rm(list=ls());  
+options(warnPartialMatchDollar=TRUE);   # safety option
+
+
+dir.desc <- "20230714test";  
+sub.tbl <- read.table(paste0("/scratch2/JoEtzel/20230714test_MARCERgroupGLMs/", dir.desc, "_subjectSet.txt"), stringsAsFactors=FALSE);
+img.path <- paste0("/scratch2/JoEtzel/", dir.desc, "_MARCERgroupGLMs/images/COGED_averageImages/");   # filled by makeAverageImages.R
+img.path.par <- paste0("/scratch2/JoEtzel/", dir.desc, "_MARCERgroupGLMs/parcelStats/COGED_parcelStats/");   # filled by makeGroupParcelStats.R
+
+
+##### shouldn't have to change code below here #####
+sub.ids <- sub.tbl$sub.id;
+atlas.path <- "/data/MARCER/ATLASES/";  
+afni.path <- "/usr/local/pkg/afni_22/";   # path to the afni function executables
+
+# files and functions for brain plotting
+source("/data/nil-external/ccp/JosetAEtzel/DMCC_files/niftiPlottingFunctions.R");  # https://osf.io/k8u2c/
+
+subcort.tbl <- read.csv(paste0(atlas.path, "subcorticalKey.csv"), stringsAsFactors=FALSE);  # subcortical_MARCER3p0.nii.gz parcel labels
+under.img <- readNifti(paste0(atlas.path, "HCP_S1200T1w_MARCER3p0.nii.gz"));      # anatomy for underlay
+sch.img <- readNifti(paste0(atlas.path, "Schaefer2018_400x7_MARCER3p0.nii.gz"));   # parcellation image
+sub.img <- readNifti(paste0(atlas.path, "subcortical_MARCER3p0.nii.gz"));
+if (!all.equal(dim(sch.img), dim(under.img))) { stop("!all.equal(dim(sch.img), dim(under.img))"); }
+if (!all.equal(dim(sub.img), dim(under.img))) { stop("!all.equal(dim(sub.img), dim(under.img))"); }
+plot.slices <- round(seq(from=20,to=52,length.out=10));     # which slices (k indices) to show in the brain plots
+
+# Schaefer parcel labels
+fin <- file(paste0(atlas.path, "Schaefer2018_400Parcels_7Networks_order_info.txt"), 'rt')
+tmp <- readLines(fin);
+close(fin); unlink(fin);
+if (length(tmp) != 800) { stop("not expected Schaefer key."); }
+tmp <- tmp[seq(from=1, to=800, by=2)];   # every-other entry is a label
+p.key <- gsub("7Networks_", "", tmp);   
+
+knot.ids <- 0:33;  
+
+
+ltys <- c('solid', '81', '71'); # search help for par #line types
+
+# load mask used to black out the surround on the volumetric difference images
+mask.img <- readNifti("/data/MARCER/participantData/fMRIPrep_PREPROCESSED/3085/derivatives/fmriprep/sub-3085/ses-1/func/sub-3085_ses-1_task-COGED_run-1_space-MNI152NLin2009cAsym_desc-brain_mask.nii.gz");
+
+### Voxel wise
+loadANDplot <- function(prefix, stat.lbl) {  #prefix <- "nonCatch_Catch"; stat.lbl <- "Tstat";
+  # load the volume STATS image for this contrast
+  fname <- paste0(img.path, "COGED_CatchNonCatch_", prefix, "_group.nii.gz");
+  if (!file.exists(fname)) { 
+    print(paste("ERROR:", fname, "not found!")); 
+  } else {
+    tmp <- system2(file.path(afni.path, "3dinfo"), args=paste0("-label ",  fname), stdout=TRUE);
+    lbl.vec <- unlist(strsplit(tmp, "[|]"));  # need brackets for splitting on pipes
+    #  [1] "SetA_mean"  "SetA_Tstat" 
+    do.img <- readNifti(fname);  # dim(do.img)  [1] 65 77 65  1 2
+  }
+  
+  ind <- which(lbl.vec == paste0("SetA_", stat.lbl));
+  if (length(ind) != 1) { 
+    stop("didn't find the ind for this stat.lbl"); 
+  } else {
+    plot.img <- do.img[,,,,ind];  # just the one slot
+    
+    if (stat.lbl == "mean") { plot.img <- plot.img * mask.img; } # mask is 1 brain, 0 elsewhere; multiply to black out surround
+    plot.volume(plot.img, under.img, pos.lims=plim, neg.lims=nlim, ttl=paste(stat.lbl, prefix));  
+  }
+}
+
+### parcelwise
+get.parcel.vol <- function(do.lbl, stat.lbl) {    # do.lbl <- "nonCatch_Catch#0_Coef"; stat.lbl <- "vol_groupMean";
+    tmp.img <- array(0, dim(under.img));
+  for (do.par in c("Schaefer2018_400x7", "subcortical")) {    # do.par <- "Schaefer2018_400x7";
+    fname <- paste0(img.path.par, "COGED_CatchNonCatch", "_", do.lbl, "_", do.par, "_", stat.lbl, ".txt");
+    if (file.exists(fname)) {
+      # Read into this txt that only has one row...
+      in.tbl <- scan(fname, what = "", sep = " ");
+      if (do.par == "subcortical") { p.lbls <- subcort.tbl$HCP.label; p.img <- sub.img; }
+      if (do.par == "Schaefer2018_400x7") { p.lbls <- 1:400; p.img <- sch.img; }
+      # Divide it up and make it into a normal data frame with labels and values
+      # For subcortical
+      if (length(in.tbl) <= 50) {
+        object_names <- in.tbl[1:19]  # Extract the object names
+        object_values <- as.numeric(in.tbl[21:39])}
+      #For Schaefer
+      if (length(in.tbl) > 50) {
+        object_names <- in.tbl[1:400]  # Extract the object names
+        object_values <- as.numeric(in.tbl[402:801])
+      }
+      in.tbl <- data.frame(t(object_values), stringsAsFactors = FALSE)
+        colnames(in.tbl) <- object_names
+      if (ncol(in.tbl) == (length(p.lbls)) & nrow(in.tbl) == 1) { vals <- unlist(in.tbl[1,1:ncol(in.tbl)]); }
+        for (pid in 1:length(p.lbls)) { tmp.img[which(p.img == p.lbls[pid])] <- vals[paste0("Mean_", p.lbls[pid])]; }
+    }
+  }
+    return(tmp.img); }
+@
+
+\noindent \texttt{groupGLMs\textunderscore COGED\textunderscore CatchNonCatch\textunderscore brains\textunderscore vol.rnw} \par
+\noindent compiled \today\  \par
+\noindent \textbf{group} MARCER COGED CatchNonCatch GLM results, volume. \par
+\noindent \Sexpr{length(which(sub.tbl$COGED_CatchNonCatch == TRUE))} people in this subject group (``\Sexpr{dir.desc}'') with COGED\textunderscore CatchNonCatch results.  \par
+\vspace{0.2 cm} 
+\noindent Tstats are shown first, followed by mean Coef. Surrounds are masked for means, but not Tstat. \par
+\vspace{0.4 cm} 
+
+\noindent \textbf{voxel-wise COGED \texttt{NonCatch\textunderscore Catch} contrast t-values} \par
+\vspace{0.1 cm} 
+<<code1leg, echo=FALSE, dev='pdf', fig.height=0.3, fig.width=7.5, fig.align='center'>>=
+layout(matrix(1:2, c(1,2))); # how many plots per line
+par(oma=rep(0,4), mar=rep(0,4), tcl=-0.3);   
+
+nlim <- c(-4.5, -2);  plim <- c(2, 4.5);  # t-stats limits for color scaling
+#nlim <- c(-1, -0.2);  plim <- c(0.2, 1);   # coef limits for color scaling
+
+# cols.cool, cols.warm defined in niftiPlottingFunctions.R
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.cool)) { rect(xleft=60-i, xright=61-i, ybottom=-0.5, ytop=0.5, col=cols.cool[i], border=cols.cool[i]); }
+text(x=-1, y=0, labels=nlim[1], adj=1);  # right-justified
+text(x=61, y=0, labels=nlim[2], adj=0);  # left-justified
+
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.warm)) { rect(xleft=i-1, xright=i, ybottom=-0.5, ytop=0.5, col=cols.warm[i], border=cols.warm[i]); }
+text(x=-1, y=0, labels=plim[1], adj=1);
+text(x=61, y=0, labels=plim[2], adj=0);
+
+@
+\vspace{0.1 cm} 
+<<code1vol, echo=FALSE, dev='pdf', fig.height=1, fig.width=8, fig.align='center'>>=
+
+loadANDplot("nonCatch_Catch", "Tstat");
+
+@
+
+
+\vspace{0.4 cm} 
+\noindent \textbf{voxel-wise COGED \texttt{EV\textunderscore Catch} regressor t-values} \par
+\vspace{0.1 cm} 
+<<code2leg, echo=FALSE, dev='pdf', fig.height=0.3, fig.width=7.5, fig.align='center'>>=
+layout(matrix(1:2, c(1,2))); # how many plots per line
+par(oma=rep(0,4), mar=rep(0,4), tcl=-0.3);   
+
+nlim <- c(-9, -3);  plim <- c(3, 9);  # t-stats limits for color scaling
+#nlim <- c(-1, -0.2);  plim <- c(0.2, 1);   # coef limits for color scaling
+
+# cols.cool, cols.warm defined in niftiPlottingFunctions.R
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.cool)) { rect(xleft=60-i, xright=61-i, ybottom=-0.5, ytop=0.5, col=cols.cool[i], border=cols.cool[i]); }
+text(x=-1, y=0, labels=nlim[1], adj=1);  # right-justified
+text(x=61, y=0, labels=nlim[2], adj=0);  # left-justified
+
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.warm)) { rect(xleft=i-1, xright=i, ybottom=-0.5, ytop=0.5, col=cols.warm[i], border=cols.warm[i]); }
+text(x=-1, y=0, labels=plim[1], adj=1);
+text(x=61, y=0, labels=plim[2], adj=0);
+
+@
+\vspace{0.1 cm} 
+<<code2vol, dev='pdf', echo=FALSE, fig.height=1, fig.width=8, fig.align='center'>>=
+
+loadANDplot("EV_Catch", "Tstat");
+
+@
+
+
+\vspace{0.4 cm} 
+\noindent \textbf{voxel-wise COGED \texttt{EV\textunderscore nonCatch} regressor t-values} \par
+\vspace{0.1 cm} 
+<<code3leg, echo=FALSE, dev='pdf', fig.height=0.3, fig.width=7.5, fig.align='center'>>=
+layout(matrix(1:2, c(1,2))); # how many plots per line
+par(oma=rep(0,4), mar=rep(0,4), tcl=-0.3);   
+
+nlim <- c(-9, -3);  plim <- c(3, 9);  # t-stats limits for color scaling
+#nlim <- c(-3, -0.5);  plim <- c(0.5, 3);   # nlim <- c(-1, -0.2);  plim <- c(0.2, 1);  # coef limits for color scaling
+
+# cols.cool, cols.warm defined in niftiPlottingFunctions.R
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.cool)) { rect(xleft=60-i, xright=61-i, ybottom=-0.5, ytop=0.5, col=cols.cool[i], border=cols.cool[i]); }
+text(x=-1, y=0, labels=nlim[1], adj=1);  # right-justified
+text(x=61, y=0, labels=nlim[2], adj=0);  # left-justified
+
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.warm)) { rect(xleft=i-1, xright=i, ybottom=-0.5, ytop=0.5, col=cols.warm[i], border=cols.warm[i]); }
+text(x=-1, y=0, labels=plim[1], adj=1);
+text(x=61, y=0, labels=plim[2], adj=0);
+
+@
+\vspace{0.1 cm} 
+<<code3vol, dev='pdf', echo=FALSE, fig.height=1, fig.width=8, fig.align='center'>>=
+
+loadANDplot("EV_nonCatch", "Tstat");
+
+@
+
+
+\vspace{0.4 cm} 
+\noindent \textbf{voxel-wise COGED \texttt{EV\textunderscore Valuation} regressor t-values} \par
+\vspace{0.1 cm} 
+<<code4leg, echo=FALSE, dev='pdf', fig.height=0.3, fig.width=7.5, fig.align='center'>>=
+layout(matrix(1:2, c(1,2))); # how many plots per line
+par(oma=rep(0,4), mar=rep(0,4), tcl=-0.3);   
+
+nlim <- c(-9, -3);  plim <- c(3, 9);  # t-stats limits for color scaling
+#nlim <- c(-3, -0.5);  plim <- c(0.5, 3);   # nlim <- c(-1, -0.2);  plim <- c(0.2, 1);  # coef limits for color scaling
+
+# cols.cool, cols.warm defined in niftiPlottingFunctions.R
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.cool)) { rect(xleft=60-i, xright=61-i, ybottom=-0.5, ytop=0.5, col=cols.cool[i], border=cols.cool[i]); }
+text(x=-1, y=0, labels=nlim[1], adj=1);  # right-justified
+text(x=61, y=0, labels=nlim[2], adj=0);  # left-justified
+
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.warm)) { rect(xleft=i-1, xright=i, ybottom=-0.5, ytop=0.5, col=cols.warm[i], border=cols.warm[i]); }
+text(x=-1, y=0, labels=plim[1], adj=1);
+text(x=61, y=0, labels=plim[2], adj=0);
+
+@
+\vspace{0.1 cm} 
+<<code4vol, dev='pdf', echo=FALSE, fig.height=1, fig.width=8, fig.align='center'>>=
+
+loadANDplot("EV_Valuation", "Tstat");
+
+@
+
+\vspace{0.4 cm} 
+\noindent \textbf{voxel-wise COGED \texttt{nonCatch\textunderscore Catch} contrast mean Coefs} \par
+\noindent Masked surround. \par
+\vspace{0.1 cm} 
+<<code5leg, echo=FALSE, dev='pdf', fig.height=0.3, fig.width=7.5, fig.align='center'>>=
+layout(matrix(1:2, c(1,2))); # how many plots per line
+par(oma=rep(0,4), mar=rep(0,4), tcl=-0.3);   
+
+#nlim <- c(-4.5, -2);  plim <- c(2, 4.5);  # t-stats limits for color scaling
+nlim <- c(-0.5, -0.05);  plim <- c(0.05, 0.5);   # coef limits for color scaling
+
+# cols.cool, cols.warm defined in niftiPlottingFunctions.R
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.cool)) { rect(xleft=60-i, xright=61-i, ybottom=-0.5, ytop=0.5, col=cols.cool[i], border=cols.cool[i]); }
+text(x=-1, y=0, labels=nlim[1], adj=1);  # right-justified
+text(x=61, y=0, labels=nlim[2], adj=0);  # left-justified
+
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.warm)) { rect(xleft=i-1, xright=i, ybottom=-0.5, ytop=0.5, col=cols.warm[i], border=cols.warm[i]); }
+text(x=-1, y=0, labels=plim[1], adj=1);
+text(x=61, y=0, labels=plim[2], adj=0);
+
+@
+\vspace{0.1 cm} 
+<<code5vol, echo=FALSE, dev='pdf', fig.height=1, fig.width=8, fig.align='center'>>=
+
+loadANDplot("nonCatch_Catch", "mean");
+
+@
+
+
+\vspace{0.4 cm} 
+\noindent \textbf{voxel-wise COGED \texttt{EV\textunderscore Catch} regressor mean Coefs} \par
+\noindent Masked surround. \par
+\vspace{0.1 cm} 
+<<code6leg, echo=FALSE, dev='pdf', fig.height=0.3, fig.width=7.5, fig.align='center'>>=
+layout(matrix(1:2, c(1,2))); # how many plots per line
+par(oma=rep(0,4), mar=rep(0,4), tcl=-0.3);   
+
+#nlim <- c(-4.5, -2);  plim <- c(2, 4.5);  # t-stats limits for color scaling
+#nlim <- c(-1, -0.2);  plim <- c(0.2, 1);   # coef limits for color scaling
+
+# cols.cool, cols.warm defined in niftiPlottingFunctions.R
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.cool)) { rect(xleft=60-i, xright=61-i, ybottom=-0.5, ytop=0.5, col=cols.cool[i], border=cols.cool[i]); }
+text(x=-1, y=0, labels=nlim[1], adj=1);  # right-justified
+text(x=61, y=0, labels=nlim[2], adj=0);  # left-justified
+
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.warm)) { rect(xleft=i-1, xright=i, ybottom=-0.5, ytop=0.5, col=cols.warm[i], border=cols.warm[i]); }
+text(x=-1, y=0, labels=plim[1], adj=1);
+text(x=61, y=0, labels=plim[2], adj=0);
+
+@
+\vspace{0.1 cm} 
+<<code6vol, dev='pdf', echo=FALSE, fig.height=1, fig.width=8, fig.align='center'>>=
+
+loadANDplot("EV_Catch", "mean");
+
+@
+
+
+\vspace{0.4 cm} 
+\noindent \textbf{voxel-wise COGED \texttt{EV\textunderscore nonCatch} regressor mean Coefs} \par
+\noindent Masked surround. \par
+\vspace{0.1 cm} 
+<<code7leg, echo=FALSE, dev='pdf', fig.height=0.3, fig.width=7.5, fig.align='center'>>=
+layout(matrix(1:2, c(1,2))); # how many plots per line
+par(oma=rep(0,4), mar=rep(0,4), tcl=-0.3);   
+
+#nlim <- c(-9, -3);  plim <- c(3, 9);  # t-stats limits for color scaling
+#nlim <- c(-3, -0.5);  plim <- c(0.5, 3);   # nlim <- c(-1, -0.2);  plim <- c(0.2, 1);  # coef limits for color scaling
+
+# cols.cool, cols.warm defined in niftiPlottingFunctions.R
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.cool)) { rect(xleft=60-i, xright=61-i, ybottom=-0.5, ytop=0.5, col=cols.cool[i], border=cols.cool[i]); }
+text(x=-1, y=0, labels=nlim[1], adj=1);  # right-justified
+text(x=61, y=0, labels=nlim[2], adj=0);  # left-justified
+
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.warm)) { rect(xleft=i-1, xright=i, ybottom=-0.5, ytop=0.5, col=cols.warm[i], border=cols.warm[i]); }
+text(x=-1, y=0, labels=plim[1], adj=1);
+text(x=61, y=0, labels=plim[2], adj=0);
+
+@
+\vspace{0.1 cm} 
+<<code7vol, dev='pdf', echo=FALSE, fig.height=1, fig.width=8, fig.align='center'>>=
+
+loadANDplot("EV_nonCatch", "mean");
+
+@
+
+
+\vspace{0.4 cm} 
+\noindent \textbf{voxel-wise COGED \texttt{EV\textunderscore Valuation} regressor mean Coefs} \par
+\noindent Masked surround. \par
+\vspace{0.1 cm} 
+<<code8leg, echo=FALSE, dev='pdf', fig.height=0.3, fig.width=7.5, fig.align='center'>>=
+layout(matrix(1:2, c(1,2))); # how many plots per line
+par(oma=rep(0,4), mar=rep(0,4), tcl=-0.3);   
+
+#nlim <- c(-9, -3);  plim <- c(3, 9);  # t-stats limits for color scaling
+#nlim <- c(-3, -0.5);  plim <- c(0.5, 3);   # nlim <- c(-1, -0.2);  plim <- c(0.2, 1);  # coef limits for color scaling
+
+# cols.cool, cols.warm defined in niftiPlottingFunctions.R
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.cool)) { rect(xleft=60-i, xright=61-i, ybottom=-0.5, ytop=0.5, col=cols.cool[i], border=cols.cool[i]); }
+text(x=-1, y=0, labels=nlim[1], adj=1);  # right-justified
+text(x=61, y=0, labels=nlim[2], adj=0);  # left-justified
+
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.warm)) { rect(xleft=i-1, xright=i, ybottom=-0.5, ytop=0.5, col=cols.warm[i], border=cols.warm[i]); }
+text(x=-1, y=0, labels=plim[1], adj=1);
+text(x=61, y=0, labels=plim[2], adj=0);
+
+@
+\vspace{0.1 cm} 
+<<code8vol, dev='pdf', echo=FALSE, fig.height=1, fig.width=8, fig.align='center'>>=
+
+loadANDplot("EV_Valuation", "mean");
+
+@
+
+\vspace{0.4 cm} 
+\noindent \textbf{parcel-wise COGED \texttt{NonCatch\textunderscore Catch} contrast t-values} \par
+\noindent Masked surround. \par
+\vspace{0.1 cm} 
+<<code9leg, echo=FALSE, dev='pdf', fig.height=0.3, fig.width=7.5, fig.align='center'>>=
+layout(matrix(1:2, c(1,2))); # how many plots per line
+par(oma=rep(0,4), mar=rep(0,4), tcl=-0.3);   
+
+nlim <- c(-7, -2);  plim <- c(2, 4.5)  # limits for color scaling
+
+# colorscale
+# cols.cool, cols.warm defined in niftiPlottingFunctions.R
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.cool)) { rect(xleft=60-i, xright=61-i, ybottom=-0.5, ytop=0.5, col=cols.cool[i], border=cols.cool[i]); }
+text(x=-1, y=0, labels=nlim[1], adj=1);  # right-justified
+text(x=61, y=0, labels=nlim[2], adj=0);  # left-justified
+
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.warm)) { rect(xleft=i-1, xright=i, ybottom=-0.5, ytop=0.5, col=cols.warm[i], border=cols.warm[i]); }
+text(x=-1, y=0, labels=plim[1], adj=1);
+text(x=61, y=0, labels=plim[2], adj=0);
+
+
+@
+\vspace{0.1 cm} 
+<<code9vol, dev='pdf', echo=FALSE, fig.height=1, fig.width=8, fig.align='center'>>=
+
+plt.img <- get.parcel.vol("nonCatch_Catch#0_Coef", "vol_groupT")
+plot.volume (plt.img, under.img, pos.lims=plim, neg.lims=nlim, ttl=paste("vol_groupT"))
+@
+
+\vspace{0.4 cm} 
+\noindent \textbf{parcel-wise COGED \texttt{EV\textunderscore Catch} regressor t-values} \par
+\noindent Masked surround. \par
+\vspace{0.1 cm} 
+<<code10leg, echo=FALSE, dev='pdf', fig.height=0.3, fig.width=7.5, fig.align='center'>>=
+layout(matrix(1:2, c(1,2))); # how many plots per line
+par(oma=rep(0,4), mar=rep(0,4), tcl=-0.3);   
+
+nlim <- c(-9, -3);  plim <- c(3, 20)  # limits for color scaling
+
+# colorscale
+# cols.cool, cols.warm defined in niftiPlottingFunctions.R
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.cool)) { rect(xleft=60-i, xright=61-i, ybottom=-0.5, ytop=0.5, col=cols.cool[i], border=cols.cool[i]); }
+text(x=-1, y=0, labels=nlim[1], adj=1);  # right-justified
+text(x=61, y=0, labels=nlim[2], adj=0);  # left-justified
+
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.warm)) { rect(xleft=i-1, xright=i, ybottom=-0.5, ytop=0.5, col=cols.warm[i], border=cols.warm[i]); }
+text(x=-1, y=0, labels=plim[1], adj=1);
+text(x=61, y=0, labels=plim[2], adj=0);
+
+
+@
+\vspace{0.1 cm} 
+<<code10vol, dev='pdf', echo=FALSE, fig.height=1, fig.width=8, fig.align='center'>>=
+
+plt.img <- get.parcel.vol("EV_Catch#0_Coef", "vol_groupT")
+plot.volume (plt.img, under.img, pos.lims=plim, neg.lims=nlim, ttl=paste("vol_groupT"))
+@
+
+\vspace{0.4 cm} 
+\noindent \textbf{parcel-wise COGED \texttt{EV\textunderscore nonCatch} regressor t-values} \par
+\noindent Masked surround. \par
+\vspace{0.1 cm} 
+<<code11leg, echo=FALSE, dev='pdf', fig.height=0.3, fig.width=7.5, fig.align='center'>>=
+layout(matrix(1:2, c(1,2))); # how many plots per line
+par(oma=rep(0,4), mar=rep(0,4), tcl=-0.3);   
+
+nlim <- c(-9, -3);  plim <- c(3, 20)  # limits for color scaling
+
+# colorscale
+# cols.cool, cols.warm defined in niftiPlottingFunctions.R
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.cool)) { rect(xleft=60-i, xright=61-i, ybottom=-0.5, ytop=0.5, col=cols.cool[i], border=cols.cool[i]); }
+text(x=-1, y=0, labels=nlim[1], adj=1);  # right-justified
+text(x=61, y=0, labels=nlim[2], adj=0);  # left-justified
+
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.warm)) { rect(xleft=i-1, xright=i, ybottom=-0.5, ytop=0.5, col=cols.warm[i], border=cols.warm[i]); }
+text(x=-1, y=0, labels=plim[1], adj=1);
+text(x=61, y=0, labels=plim[2], adj=0);
+
+
+@
+\vspace{0.1 cm} 
+<<code11vol, dev='pdf', echo=FALSE, fig.height=1, fig.width=8, fig.align='center'>>=
+
+plt.img <- get.parcel.vol("EV_nonCatch#0_Coef", "vol_groupT")
+plot.volume (plt.img, under.img, pos.lims=plim, neg.lims=nlim, ttl=paste("vol_groupT"))
+@
+
+\vspace{0.4 cm} 
+\noindent \textbf{parcel-wise COGED \texttt{EV\textunderscore Valuation} regressor t-values} \par
+\noindent Masked surround. \par
+\vspace{0.1 cm} 
+<<code12leg, echo=FALSE, dev='pdf', fig.height=0.3, fig.width=7.5, fig.align='center'>>=
+layout(matrix(1:2, c(1,2))); # how many plots per line
+par(oma=rep(0,4), mar=rep(0,4), tcl=-0.3);   
+
+nlim <- c(-9, -3);  plim <- c(3, 12)  # limits for color scaling
+
+# colorscale
+# cols.cool, cols.warm defined in niftiPlottingFunctions.R
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.cool)) { rect(xleft=60-i, xright=61-i, ybottom=-0.5, ytop=0.5, col=cols.cool[i], border=cols.cool[i]); }
+text(x=-1, y=0, labels=nlim[1], adj=1);  # right-justified
+text(x=61, y=0, labels=nlim[2], adj=0);  # left-justified
+
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.warm)) { rect(xleft=i-1, xright=i, ybottom=-0.5, ytop=0.5, col=cols.warm[i], border=cols.warm[i]); }
+text(x=-1, y=0, labels=plim[1], adj=1);
+text(x=61, y=0, labels=plim[2], adj=0);
+
+
+@
+\vspace{0.1 cm} 
+<<code12vol, dev='pdf', echo=FALSE, fig.height=1, fig.width=8, fig.align='center'>>=
+
+plt.img <- get.parcel.vol("EV_Valuation#0_Coef", "vol_groupT")
+plot.volume (plt.img, under.img, pos.lims=plim, neg.lims=nlim, ttl=paste("vol_groupT"))
+@
+\vspace{0.4 cm} 
+\noindent \textbf{parcel-wise COGED \texttt{NonCatch\textunderscore Catch} contrast mean Coefs} \par
+\noindent Masked surround. \par
+\vspace{0.1 cm} 
+<<code13leg, echo=FALSE, dev='pdf', fig.height=0.3, fig.width=7.5, fig.align='center'>>=
+layout(matrix(1:2, c(1,2))); # how many plots per line
+par(oma=rep(0,4), mar=rep(0,4), tcl=-0.3);   
+
+nlim <- c(-0.5, -0.05);  plim <- c(0.05, 0.5);  # limits for color scaling
+
+# colorscale
+# cols.cool, cols.warm defined in niftiPlottingFunctions.R
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.cool)) { rect(xleft=60-i, xright=61-i, ybottom=-0.5, ytop=0.5, col=cols.cool[i], border=cols.cool[i]); }
+text(x=-1, y=0, labels=nlim[1], adj=1);  # right-justified
+text(x=61, y=0, labels=nlim[2], adj=0);  # left-justified
+
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.warm)) { rect(xleft=i-1, xright=i, ybottom=-0.5, ytop=0.5, col=cols.warm[i], border=cols.warm[i]); }
+text(x=-1, y=0, labels=plim[1], adj=1);
+text(x=61, y=0, labels=plim[2], adj=0);
+
+
+@
+\vspace{0.1 cm} 
+<<code13vol, dev='pdf', echo=FALSE, fig.height=1, fig.width=8, fig.align='center'>>=
+
+plt.img <- get.parcel.vol("nonCatch_Catch#0_Coef", "vol_groupMean")
+plot.volume (plt.img, under.img, pos.lims=plim, neg.lims=nlim, ttl=paste("vol_groupMean"))
+@
+
+
+\vspace{0.4 cm} 
+\noindent \textbf{parcel-wise COGED \texttt{EV\textunderscore Catch} regressor mean Coefs} \par
+\noindent Masked surround. \par
+\vspace{0.1 cm} 
+<<code14leg, echo=FALSE, dev='pdf', fig.height=0.3, fig.width=7.5, fig.align='center'>>=
+layout(matrix(1:2, c(1,2))); # how many plots per line
+par(oma=rep(0,4), mar=rep(0,4), tcl=-0.3);   
+
+#nlim <- c(-4.5, -2);  plim <- c(2, 4.5);  # t-stats limits for color scaling
+#nlim <- c(-1, -0.2);  plim <- c(0.2, 1);   # coef limits for color scaling
+
+# cols.cool, cols.warm defined in niftiPlottingFunctions.R
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.cool)) { rect(xleft=60-i, xright=61-i, ybottom=-0.5, ytop=0.5, col=cols.cool[i], border=cols.cool[i]); }
+text(x=-1, y=0, labels=nlim[1], adj=1);  # right-justified
+text(x=61, y=0, labels=nlim[2], adj=0);  # left-justified
+
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.warm)) { rect(xleft=i-1, xright=i, ybottom=-0.5, ytop=0.5, col=cols.warm[i], border=cols.warm[i]); }
+text(x=-1, y=0, labels=plim[1], adj=1);
+text(x=61, y=0, labels=plim[2], adj=0);
+
+@
+\vspace{0.1 cm} 
+<<code14vol, dev='pdf', echo=FALSE, fig.height=1, fig.width=8, fig.align='center'>>=
+
+plt.img <- get.parcel.vol("EV_Catch#0_Coef", "vol_groupMean")
+plot.volume (plt.img, under.img, pos.lims=plim, neg.lims=nlim, ttl=paste("vol_groupMean"))
+
+@
+
+
+\vspace{0.4 cm} 
+\noindent \textbf{parcel-wise COGED \texttt{EV\textunderscore nonCatch} regressor mean Coefs} \par
+\noindent Masked surround. \par
+\vspace{0.1 cm} 
+<<code15leg, echo=FALSE, dev='pdf', fig.height=0.3, fig.width=7.5, fig.align='center'>>=
+layout(matrix(1:2, c(1,2))); # how many plots per line
+par(oma=rep(0,4), mar=rep(0,4), tcl=-0.3);   
+
+#nlim <- c(-9, -3);  plim <- c(3, 9);  # t-stats limits for color scaling
+#nlim <- c(-3, -0.5);  plim <- c(0.5, 3);   # nlim <- c(-1, -0.2);  plim <- c(0.2, 1);  # coef limits for color scaling
+
+# cols.cool, cols.warm defined in niftiPlottingFunctions.R
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.cool)) { rect(xleft=60-i, xright=61-i, ybottom=-0.5, ytop=0.5, col=cols.cool[i], border=cols.cool[i]); }
+text(x=-1, y=0, labels=nlim[1], adj=1);  # right-justified
+text(x=61, y=0, labels=nlim[2], adj=0);  # left-justified
+
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.warm)) { rect(xleft=i-1, xright=i, ybottom=-0.5, ytop=0.5, col=cols.warm[i], border=cols.warm[i]); }
+text(x=-1, y=0, labels=plim[1], adj=1);
+text(x=61, y=0, labels=plim[2], adj=0);
+
+@
+\vspace{0.1 cm} 
+<<code15vol, dev='pdf', echo=FALSE, fig.height=1, fig.width=8, fig.align='center'>>=
+
+plt.img <- get.parcel.vol("EV_nonCatch#0_Coef", "vol_groupMean")
+plot.volume (plt.img, under.img, pos.lims=plim, neg.lims=nlim, ttl=paste("vol_groupMean"))
+
+@
+
+
+\vspace{0.4 cm} 
+\noindent \textbf{parcel-wise COGED \texttt{EV\textunderscore Valuation} regressor mean Coefs} \par
+\noindent Masked surround. \par
+\vspace{0.1 cm} 
+<<code16leg, echo=FALSE, dev='pdf', fig.height=0.3, fig.width=7.5, fig.align='center'>>=
+layout(matrix(1:2, c(1,2))); # how many plots per line
+par(oma=rep(0,4), mar=rep(0,4), tcl=-0.3);   
+
+#nlim <- c(-9, -3);  plim <- c(3, 9);  # t-stats limits for color scaling
+#nlim <- c(-3, -0.5);  plim <- c(0.5, 3);   # nlim <- c(-1, -0.2);  plim <- c(0.2, 1);  # coef limits for color scaling
+
+# cols.cool, cols.warm defined in niftiPlottingFunctions.R
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.cool)) { rect(xleft=60-i, xright=61-i, ybottom=-0.5, ytop=0.5, col=cols.cool[i], border=cols.cool[i]); }
+text(x=-1, y=0, labels=nlim[1], adj=1);  # right-justified
+text(x=61, y=0, labels=nlim[2], adj=0);  # left-justified
+
+plot(x=0, y=0, xlim=c(-10,70), type='n', ylab="", xlab="", main="", bty='n', xaxt='n', yaxt='n');  # blank plot
+for (i in 1:length(cols.warm)) { rect(xleft=i-1, xright=i, ybottom=-0.5, ytop=0.5, col=cols.warm[i], border=cols.warm[i]); }
+text(x=-1, y=0, labels=plim[1], adj=1);
+text(x=61, y=0, labels=plim[2], adj=0);
+
+@
+\vspace{0.1 cm} 
+<<code16vol, dev='pdf', echo=FALSE, fig.height=1, fig.width=8, fig.align='center'>>=
+
+plt.img <- get.parcel.vol("EV_Valuation#0_Coef", "vol_groupMean")
+plot.volume (plt.img, under.img, pos.lims=plim, neg.lims=nlim, ttl=paste("vol_groupMean"))
+
+@
+
+
+\end{document}
