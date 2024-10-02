@@ -3,10 +3,16 @@ title: "Behavioral Proximity Models & fMRI Activity Modulation"
 author: "Mengzhe Wei"
 date: "`r Sys.Date()`"
 output:
-  pdf_document: default
+  html_document:
+    theme: journal
+    toc: yes
+    toc_float:
+      collapsed: true
 ---
+
 # Proximity Results
-### This file is to analyze MARCER data's proximity 
+
+### This file is to analyze MARCER data's proximity and trial-wise activity
 Notes: 
 dACC parcel IDs: 
 7Networks_LH_SalVentAttn_Med_1 P107
@@ -26,8 +32,6 @@ box_auth();
 wustl.box <- TRUE;
 fMRI.path <- "/scratch2/weie/COGED_CODE/np2_trial/np2trialwise/"
 out.path <-"/scratch2/weie/COGED_CODE/np2_trial/np2analysis/"
-atlas.path <- "/data/MARCER/ATLASES/";  
-afni.path <- "/usr/local/pkg/afni_22/";   # path to the afni function executables
 dir.desc <- "20230714test";  
 sub.tbl <- read.table(paste0("/scratch2/weie/COGED_CODE/", dir.desc, "_subjectSet.txt"), stringsAsFactors=FALSE); 
 sub.ids <- sub.tbl$sub.id[which(sub.tbl$COGED_CatchNonCatch == TRUE)]
