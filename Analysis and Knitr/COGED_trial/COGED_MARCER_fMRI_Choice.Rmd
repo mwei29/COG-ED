@@ -40,15 +40,23 @@ behavior$rewardCode <- as.numeric(as.character(behavior$rewardCode))
 prox.choice <- glmer(data = behavior, choiceCode ~ proximity + rewardCode + loadCode + (proximity|subID), family = "binomial")
 summary(prox.choice) #As expected, the higher the proximity, the more likely people are to choose the easier option. The higher the reward for the harder option, the less likely people are to choose the easier option (p = 0.069). The higher the load of the hard task is, the more likely people are to choose the easier option. 
 
-# dACC activity related to proximity
-dm.prox <- glmer(data = behavior, dm.dACC ~ proximity + (proximity|subID), family = "gaussian")
-summary(dm.prox) #proximity doesn't predict dACC activity during decision making phase
-activity.choice <- glmer(data = behavior, choiceCode~dm.dACC+eval.dACC+proximity+rewardCode+loadCode+(proximity|subID), family = "binomial")
-summary(activity.choice) #dACC activity doesn't predict choice behavior
-activity <- glmer(data = behavior, dm.dACC ~ eval.dACC + (proximity|subID), family = "gaussian")
-summary(activity) #the activity during evaluation phase does predict the activity during decision making phase
-activity.dm <- glmer(data = behavior, dm.dACC ~ eval.dACC +rewardCode+loadCode+ (proximity|subID), family = "gaussian")
-summary(activity.dm) #It seems that the load predicts lower decision making phase activity
-activity.eval<- glmer(data = behavior, eval.dACC ~ rewardCode+loadCode+ (1|subID), family = "gaussian")
-summary(activity.eval) #reward or load doesn't predict dACC's evaluation activity
+# Model 1: dACC activity related to proximity
+dm.prox <- glmer(data = behavior, dm.dACC ~ proximity + (1 | subID), family = "gaussian")
+summary(dm.prox) # proximity doesn't predict dACC activity during decision making phase
+
+# Model 2: Activity choice model without random slope for proximity
+activity.choice <- glmer(data = behavior, choiceCode ~ dm.dACC + eval.dACC + proximity + rewardCode + loadCode + (1 | subID), family = "binomial")
+summary(activity.choice) # dACC activity doesn't predict choice behavior
+
+# Model 3: Activity model with proximity as a fixed effect
+activity <- glmer(data = behavior, dm.dACC ~ eval.dACC + (1 | subID), family = "gaussian")
+summary(activity) # the activity during evaluation phase does predict the activity during decision making phase
+
+# Model 4: Decision making model with proximity as a fixed effect
+activity.dm <- glmer(data = behavior, dm.dACC ~ eval.dACC + rewardCode + loadCode + (1 | subID), family = "gaussian")
+summary(activity.dm) # It seems that the load predicts lower decision making phase activity
+
+# Model 5: Evaluation activity model without random slope for proximity
+activity.eval <- glmer(data = behavior, eval.dACC ~ rewardCode + loadCode + (1 | subID), family = "gaussian")
+summary(activity.eval) # reward or load doesn't predict dACC's evaluation activity
 ```
