@@ -1,0 +1,116 @@
+---
+title: "ANOVA_result"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+rm(list=ls())
+knitr::opts_chunk$set(echo = TRUE)
+out.dirname <- paste0("/scratch2/weie/COGED_CODE/Stats/")
+```
+
+```{r MDD t-test, warning=FALSE}
+#Load Results
+Schaefer <- read.delim(paste0(out.dirname,"Schaefer2018_400x7_vol_robustttest.txt"))
+subcortical <- read.delim(paste0(out.dirname,"subcortical_vol_robustttest.txt"))
+#evaluation phase, MDD>HC
+which(Schaefer[2,] < 0.05 & Schaefer[1,] < 0 ) 
+#evaluation phase, MDD<HC
+which(Schaefer[2,] < 0.05 & Schaefer[1,] > 0 ) 
+#decision phase, MDD>HC
+which(Schaefer[4,] < 0.05 & Schaefer[3,] < 0 ) 
+#decision phase, MDD<HC
+which(Schaefer[4,] < 0.05 & Schaefer[3,] > 0 )
+```
+```{r MDD & Event type two-way ANOVA, warning=FALSE}
+#Load Results
+subcortical <- readRDS(paste0(out.dirname,"anova_mdd&event_subcortical_vol.rds"))
+Schaefer <- readRDS(paste0(out.dirname,"anova_mdd&event_Schaefer2018_400x7_vol.rds"))
+#event effect
+which(subcortical[1,5,] < 0.05) 
+which(Schaefer[1,5,] < 0.05) 
+#interaction effect
+which(subcortical[3,5,] < 0.05) 
+which(Schaefer[3,5,] < 0.05) 
+Schaefer[,,62]
+```
+
+```{r MDD & Reward two-way ANOVA, warning=FALSE}
+#Load Results
+subcortical.eval <- readRDS(paste0(out.dirname,"anova_eval_mdd_subcortical_vol.rds"))
+Schaefer.eval <- readRDS(paste0(out.dirname,"anova_eval_mdd_Schaefer2018_400x7_vol.rds"))
+subcortical.dec <- readRDS(paste0(out.dirname,"anova_dec_mdd_subcortical_vol.rds"))
+Schaefer.dec <- readRDS(paste0(out.dirname,"anova_dec_mdd_Schaefer2018_400x7_vol.rds"))
+#MDD effect
+which(subcortical.eval[1,5,] < 0.05) 
+which(Schaefer.eval[1,5,] < 0.05) 
+which(subcortical.dec[1,5,] < 0.05)
+which(Schaefer.dec[1,5,] < 0.05) 
+#reward effect
+which(subcortical.eval[3,5,] < 0.05) 
+which(Schaefer.eval[3,5,] < 0.05) 
+which(subcortical.dec[3,5,] < 0.05) 
+which(Schaefer.dec[3,5,] < 0.05) 
+#MDD:reward effect
+which(subcortical.eval[4,5,] < 0.05)
+which(Schaefer.eval[4,5,] < 0.05)
+which(subcortical.dec[4,5,] < 0.05)
+which(Schaefer.dec[4,5,] < 0.05)
+#View parcel 169 (vmPFC) and subcortical parcel 1 (accumbens)
+Schaefer.eval[,,169]
+subcortical.eval[,,1]
+```
+
+```{r AGE & Reward, warning=FALSE}
+#Load Results
+subcortical.eval <- readRDS(paste0(out.dirname,"anova_eval_age_subcortical_vol.rds"))
+Schaefer.eval <- readRDS(paste0(out.dirname,"anova_eval_age_Schaefer2018_400x7_vol.rds"))
+subcortical.dec <- readRDS(paste0(out.dirname,"anova_dec_age_subcortical_vol.rds"))
+Schaefer.dec <- readRDS(paste0(out.dirname,"anova_dec_age_Schaefer2018_400x7_vol.rds"))
+#AGE effect
+which(subcortical.eval[1,5,] < 0.05) 
+which(Schaefer.eval[1,5,] < 0.05) 
+which(subcortical.dec[1,5,] < 0.05)
+which(Schaefer.dec[1,5,] < 0.05) 
+#reward effect
+which(subcortical.eval[3,5,] < 0.05) 
+which(Schaefer.eval[3,5,] < 0.05) 
+which(subcortical.dec[3,5,] < 0.05) 
+which(Schaefer.dec[3,5,] < 0.05) 
+#AGE:reward effect
+which(subcortical.eval[4,5,] < 0.05)
+which(Schaefer.eval[4,5,] < 0.05)
+which(subcortical.dec[4,5,] < 0.05)
+which(Schaefer.dec[4,5,] < 0.05)
+#View parcel 174, 381 (vmPFC)
+Schaefer.dec[,,174]
+Schaefer.dec[,,381]
+```
+
+```{r AGE & MDD two way ANOVA, warning=FALSE}
+#Load Results
+subcortical.eval <- readRDS(paste0(out.dirname,"anova_eval_age&mdd_subcortical_vol.rds"))
+Schaefer.eval <- readRDS(paste0(out.dirname,"anova_eval_age&mdd_Schaefer2018_400x7_vol.rds"))
+subcortical.dec <- readRDS(paste0(out.dirname,"anova_dec_age&mdd_subcortical_vol.rds"))
+Schaefer.dec <- readRDS(paste0(out.dirname,"anova_dec_age&mdd_Schaefer2018_400x7_vol.rds"))
+#age Group effect
+which(subcortical.eval[1,5,] < 0.05) 
+which(Schaefer.eval[1,5,] < 0.05) 
+which(subcortical.dec[1,5,] < 0.05)
+which(Schaefer.dec[1,5,] < 0.05) 
+#mdd group effect
+which(subcortical.eval[2,5,] < 0.05) 
+which(Schaefer.eval[2,5,] < 0.05) 
+which(subcortical.dec[2,5,] < 0.05) 
+which(Schaefer.dec[2,5,] < 0.05) 
+#age:mdd effect
+which(subcortical.eval[3,5,] < 0.05) 
+which(Schaefer.eval[3,5,] < 0.05) 
+which(subcortical.dec[3,5,] < 0.05)
+which(Schaefer.dec[3,5,] < 0.05) 
+#View parcel 174, 381, 169 (vmPFC), subcortical parcel 1(accumbens)
+Schaefer.dec[,,174]
+Schaefer.dec[,,381]
+Schaefer.eval[,,169]
+subcortical.eval[,,1]
+```
