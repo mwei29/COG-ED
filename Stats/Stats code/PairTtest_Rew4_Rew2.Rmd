@@ -1,0 +1,134 @@
+---
+title: "PairTtest_Rew4_Rew2"
+author: "Mengzhe Wei"
+date: "10/2/2024"
+output: 
+  html_document:
+    theme: journal
+    toc: yes
+    toc_float:
+      collapsed: true
+---
+
+# T-Test Reward Effect (Rew4-Rew2) - Main Response Calculation
+Note: started by Mengzhe Wei on 100224 to calculate the difference between Rew4 and Rew2, hoping to inform ROIs for reward processing and positive affect. Adapted from /scratch2/weie/COGED_CODE/Stats/Ttest/UnpairedTtest_meanResp.R. 
+```{r setup, eval=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
+rm(list=ls());  
+out.dirname <- paste0("/scratch2/weie/COGED_CODE/Stats/MeanResponse/Reward/");   # top-level output directory for this particular analysis
+glm.path <- "/data/MARCER/participantData/AFNI_ANALYSIS/";   # top-level input directory
+dir.desc <- "20230714test";  
+sub.tbl <- read.table(paste0("/scratch2/weie/COGED_CODE/SubjectSet/", dir.desc, "_subjectSet.txt"), stringsAsFactors=FALSE);
+sub.ids <- sub.tbl$sub.id[which(sub.tbl$COGED_RewardLoad == TRUE)]
+atlas.path <- "/data/MARCER/ATLASES/";  
+subcort.tbl <- read.csv(paste0(atlas.path, "subcorticalKey.csv"), stringsAsFactors=FALSE); 
+# Set the knots for evaluation phase and decision phase
+mean.eval.row <- 3:5
+mean.dec.row <- 10:13
+time.row <- list(mean.eval.row,mean.dec.row)
+time.name <- c("eval","dm")
+```
+
+## Make Function for mean response
+```{r meanResp function, eval=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
+get.t.stat <- function(do.type,do.reward,do.time) { # do.type <- "Schaefer2018_400x7_vol"; # do.type <- "subcortical_vol"; #do.reward<-4; #do.time<-1
+  if (do.type == "Schaefer2018_400x7_vol") { do.columns <-1:400; parcel.name<- paste0("p", 1:400)} 
+  if (do.type == "subcortical_vol") { do.columns <- subcort.tbl$HCP.label; parcel.name <-paste0(subcort.tbl$parcel.label, subcort.tbl$hemisphere)} 
+  fixed_names <- "subID"
+  col.names <- c(fixed_names, parcel.name)
+  tbl.all <- array(NA,c(length(sub.ids), 1+length(do.columns)), dimnames=list(NULL,col.names))
+  tbl.all[,1] <- sub.ids
+  for (sid in 1:length(sub.ids)) {   # sid <- 1;
+    rewload.lbls <- c(paste0("EV_Low_", do.reward), paste0("EV_Medium_", do.reward), paste0("EV_High_", do.reward));
+    rewload.lst <- vector("list", length(rewload.lbls));
+    for (rid in 1:length(rewload.lbls)) { #rid <-1
+      fname <- paste0(glm.path, sub.ids[sid], "/RESULTS/COGED_RewardLoad/", sub.ids[sid], "_", rewload.lbls[rid], "_", do.type, ".txt");
+      if (file.exists(fname)) { rewload.lst[[rid]]  <- read.delim(fname)[-c(1,2)]; } # take off first two (label) columns
+    }
+    for  (pid in 1:length(do.columns))  { # pid <- 1
+        vals.tbl <- rbind(rewload.lst[[1]][,paste0("Mean_",do.columns[pid])],
+                          rewload.lst[[2]][,paste0("Mean_",do.columns[pid])],
+                          rewload.lst[[3]][,paste0("Mean_",do.columns[pid])]);
+        vals.reward <- apply (vals.tbl, 2, mean)
+        tbl.all[sid,pid+1] <- mean(vals.reward[time.row[[do.time]]])
+    }
+  }
+  write.table(tbl.all, paste0(out.dirname,"Rew", do.reward, "_", time.name[do.time],"_", do.type,"_mean.txt"), sep = "\t", row.names = TRUE, col.names = TRUE)
+} 
+```
+
+## Mean activity for Rew 4 per participant
+
+### Evaluation period 
+```{r eval4, eval=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
+get.t.stat("Schaefer2018_400x7_vol",4,1)
+get.t.stat("subcortical_vol",4,1)
+```
+
+### Decision-making period
+```{r dm4, eval=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
+get.t.stat("Schaefer2018_400x7_vol",4,2)
+get.t.stat("subcortical_vol",4,2)
+```
+
+## Mean activity for Rew 2 per participant
+
+### Evaluation period 
+```{r eval2, eval=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
+get.t.stat("Schaefer2018_400x7_vol",2,1)
+get.t.stat("subcortical_vol",2,1)
+```
+
+### Decision-making period
+```{r dm2, eval=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
+get.t.stat("Schaefer2018_400x7_vol",2,2)
+get.t.stat("subcortical_vol",2,2)
+```
+
+# Paired T-Test Calculation
+
+## Function set up
+```{r t, eval=FALSE, echo=FALSE, warning=FALSE, message=FALSE}   
+library(DescTools);   # for robust t-test (YuenTTest)
+out.dirname <- paste0("/scratch2/weie/COGED_CODE/Stats/Ttest/");
+in.dirname <-paste0("/scratch2/weie/COGED_CODE/Stats/MeanResponse/Reward/")
+do.trim <- 0.1; 
+#Create a dataframe to hold the robust t value and p value for evaluation and decision
+robust.t <- function(do.type) {# do.type <- "Schaefer2018_400x7_vol"; # do.type <- "subcortical_vol";
+  if (do.type == "Schaefer2018_400x7_vol") { do.columns <-1:400; parcel.name<- paste0("p", 1:400)} 
+  if (do.type == "subcortical_vol") { do.columns <- subcort.tbl$HCP.label; parcel.name <-paste0(subcort.tbl$parcel.label, subcort.tbl$hemisphere)} 
+  robust.t.result <- array(NA,c(4, length(do.columns)), dimnames=list(c("t.eval","p.eval","t.dec","p.dec"),parcel.name)) 
+  Rew4.eval.tbl <- read.delim(paste0(in.dirname,"Rew4_eval_",do.type,"_mean.txt"))
+  Rew2.eval.tbl <- read.delim(paste0(in.dirname,"Rew2_eval_",do.type,"_mean.txt"))
+  Rew4.dm.tbl <- read.delim(paste0(in.dirname,"Rew4_dm_",do.type,"_mean.txt"))
+  Rew2.dm.tbl <- read.delim(paste0(in.dirname,"Rew2_dm_",do.type,"_mean.txt"))
+  for  (pid in 1:length(do.columns)) {   # pid <- 1;
+  t<-YuenTTest(Rew4.eval.tbl[,pid+1], Rew2.eval.tbl[,pid+1], paired = TRUE, trim=do.trim)
+  robust.t.result[1,pid] <- t$statistic
+  robust.t.result[2,pid] <- t$p.value
+  }
+  for  (pid in 1:length(do.columns)) {   # pid <- 1;
+  t<-YuenTTest(Rew4.dm.tbl[,pid+1], Rew2.dm.tbl[,pid+1], paired = TRUE, trim=do.trim)
+  robust.t.result[3,pid] <- t$statistic
+  robust.t.result[4,pid] <- t$p.value
+  }
+  write.table(robust.t.result,paste0(out.dirname,"Rew4_Rew2_",do.type,"_robustttest.txt"), sep = "\t", row.names = TRUE, col.names = TRUE)
+}
+```
+
+## Write out T result
+```{r t result, eval=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
+robust.t("Schaefer2018_400x7_vol")
+robust.t("subcortical_vol")
+```
+
+# Paired T-Test Results
+```{r t result investigation, eval=TRUE, echo=TRUE, warning=FALSE, message=FALSE}
+out.dirname <- paste0("/scratch2/weie/COGED_CODE/Stats/Ttest/");
+subcortical <- read.delim(paste0(out.dirname,"Rew4_Rew2_subcortical_vol_robustttest.txt"))
+Schaefer <- read.delim(paste0(out.dirname,"Rew4_Rew2_Schaefer2018_400x7_vol_robustttest.txt"))
+
+which(subcortical[2,] < 0.05) #Evaluation Subcortical
+which(Schaefer[2,] < 0.05) #Evaluation Schaefer: 55  75  77  78 116 130 131 132 133 137 139 140 141 144 147 171 187 206 208 255 256 276 280 281 282 284 290 334 335 336 337 345 349 351 353 356 358
+which(subcortical[4,] < 0.05) #Decision making Subcortical
+which(Schaefer[4,] < 0.05) #Decision making Schaefer: 7 155 327 340 368 375
+```
