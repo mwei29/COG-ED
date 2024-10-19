@@ -13,7 +13,7 @@ output:
 # Cross-Subject Correlations in Cog-ED and IAPS
 Notes: Started 16 Sep 2024 by Mengzhe Wei to run analysis looking at activities during COGED and IAPS. 
 
-### Does the response to positive affect (LookPos-LookNeu) in IAPS correlate with the response to increasing reward amount in the CogED (Rew4-Rew2)? 
+# Does the response to positive affect (LookPos-LookNeu) in IAPS correlate with the response to increasing reward amount in the CogED (Rew4-Rew2)? 
 Does one's response in IAPS to predict their response in the CogED (scatterplot). Note that for CogED we are only looking at evaluation period in GLMs (3-5s), and for IAPS we are looking at GLM activity from 9s to 11s. 
 Key ROIs:
 vmPFC (https://doi.org/10.1016/j.neuropsychologia.2022.108303):
@@ -27,16 +27,22 @@ vmPFC (https://doi.org/10.1016/j.neuropsychologia.2022.108303):
 382	7Networks_RH_Default_PFCdPFCm_4
 Ventral Striatum: Accumbens, Putamen
 
+Second batch of analyses: look at the overlapping parcels between Rew4-Rew2 and LookPos-LookNeu parcels: 75, 77, 130, 131, 132, 133, 137, 139, 144, 147, 187, 206, 276, 281, 282, 290, 334, 335, 336, 337, 345, 351, 353, 358
+
+## vmPFC and ventral striatum
+
 ### Set up
-```{r setup, eval=TRUE, echo=TRUE, warning=FALSE, message=FALSE}
+```{r setup0, eval=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
 #basic setup
 rm(list=ls())
 options(warnPartialMatchDollar=TRUE);   # safety option
 library(RNifti); library(lme4); library(knitr); library(dplyr); #Packages
-in.path <- "/scratch2/weie/COGED_CODE/MW+CG_IAPSCOGED/"
-out.path <-"/scratch2/weie/COGED_CODE/MW+CG_IAPSCOGED/"
+# in.path <- "/scratch2/weie/COGED_CODE/MW+CG_IAPSCOGED/"
+# out.path <-"/scratch2/weie/COGED_CODE/MW+CG_IAPSCOGED/"
+in.path <- "C:/Users/Emotion/Documents/GIT-MW/COG-ED/Stats/" 
+out.path <-"C:/Users/Emotion/Documents/GIT-MW/COG-ED/Analysis and Knitr/COGED_IAPS/" 
 dir.desc <- "20230714test";  
-sub.tbl <- read.table(paste0("/scratch2/weie/COGED_CODE/", dir.desc, "_subjectSet.txt"), stringsAsFactors=FALSE);
+sub.tbl <- read.table(paste0(in.path, dir.desc, "_subjectSet.txt"), stringsAsFactors=FALSE);
 sub.ids <- sub.tbl$sub.id[which(sub.tbl$COGED_CatchNonCatch == TRUE)]
 #select data needed for analysis
 schaefer.parcel.ids <- c(168,169,173,174,379,380,381,382)
@@ -53,7 +59,7 @@ data$vmpfc_pos <- apply(data[,paste0(schaefer.parcel.ids,"_pos")], 1, mean, na.r
 ```
 
 ### Scatter plot
-```{r scatterplot, eval=TRUE, echo=TRUE, warning=FALSE, message=FALSE}
+```{r scatterplot0, eval=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
 layout(matrix(1:15, 5,3, byrow=TRUE)); 
 par(mar = c(2, 2, 2, 1), mgp = c(1.1, 0.2, 0), tcl = -0.3);
 
@@ -99,7 +105,7 @@ par(mfrow = c(1, 1))
 ```
 
 ### Regression
-```{r regression, warning=FALSE, message=TRUE}
+```{r regression0, eval=FALSE, echo=FALSE, warning=FALSE, message=TRUE}
 for (i in 1:length(subcortical.parcel.ids)) {
 regression<-lm(data[[paste0(subcortical.parcel.ids[i], "_pos")]]~data[[paste0(subcortical.parcel.ids[i], "_rew")]])
 message(paste0(subcortical.parcel.ids[i]), " simple linear regression model")
@@ -114,4 +120,63 @@ regression<-lm(data[["vmpfc_pos"]]~data[["vmpfc_rew"]])
 summary(regression)
 ```
 
+## Second analyses: all overlapping parcels
 
+### Set up
+```{r setup, eval=TRUE, echo=TRUE, warning=FALSE, message=FALSE}
+#basic setup
+rm(list=ls())
+options(warnPartialMatchDollar=TRUE);   # safety option
+library(RNifti); library(lme4); library(knitr); library(dplyr); #Packages
+in.path <- "C:/Users/Emotion/Documents/GIT-MW/COG-ED/Stats/" 
+out.path <-"C:/Users/Emotion/Documents/GIT-MW/COG-ED/Analysis and Knitr/COGED_IAPS/" 
+dir.desc <- "20230714test";  
+sub.tbl <- read.table(paste0(in.path, dir.desc, "_subjectSet.txt"), stringsAsFactors=FALSE);
+sub.ids <- sub.tbl$sub.id[which(sub.tbl$COGED_CatchNonCatch == TRUE)]
+#select data needed for analysis
+schaefer.parcel.ids <- c(75, 77, 130, 131, 132, 133, 137, 139, 144, 147, 187, 206, 276, 281, 282, 290, 334, 335, 336, 337, 345, 351, 353, 358)
+schaefer.parcel.ids <- paste0("p", schaefer.parcel.ids)
+COGED <- read.delim(paste0(in.path, "COGED_Rew4_Rew2_Eval.txt"),header=TRUE)
+IAPS <- read.delim(paste0(in.path, "IAPS_LookPos_LookNeu_9to11.txt"),header=TRUE)
+COGED.ROI <-COGED[,c("subID", schaefer.parcel.ids)]
+IAPS.ROI <-IAPS[,c("SubID", schaefer.parcel.ids)]  #little note to MW here, Chris capitalized subID.
+colnames(IAPS.ROI)[colnames(IAPS.ROI) == "SubID"] <- "subID"
+data <- merge(COGED.ROI, IAPS.ROI, by = "subID",suffixes = c("_rew", "_pos"))
+data$vmpfc_rew <- apply(data[,paste0(schaefer.parcel.ids,"_rew")], 1, mean, na.rm=TRUE)
+data$vmpfc_pos <- apply(data[,paste0(schaefer.parcel.ids,"_pos")], 1, mean, na.rm=TRUE)
+```
+
+### Scatter plot
+```{r scatterplot, eval=TRUE, echo=TRUE, warning=FALSE, message=FALSE}
+layout(matrix(1:25, 5,5, byrow=TRUE)); 
+par(mar = c(2, 2, 2, 1), mgp = c(1.1, 0.2, 0), tcl = -0.3);
+
+# loop through schaefer parcels
+for (i in 1:length(schaefer.parcel.ids)) { #i<-1
+  # Generate scatter plot for Schaefer parcels
+  plot(
+    data[[paste0(schaefer.parcel.ids[i], "_rew")]], 
+    data[[paste0(schaefer.parcel.ids[i], "_pos")]], 
+    xlab = "Rew4-Rew2", 
+    ylab = "Pos-Neu", 
+    main = schaefer.parcel.ids[i], 
+    pch = 16, col = "darkgreen"
+  )
+  abline(lm(data[[paste0(schaefer.parcel.ids[i], "_rew")]]~data[[paste0(schaefer.parcel.ids[i], "_pos")]]))
+}
+par(mfrow = c(1, 1))
+```
+
+### Regression
+```{r regression, warning=FALSE, message=TRUE}
+for (i in 1:length(schaefer.parcel.ids)) {
+regression<-lm(data[[paste0(schaefer.parcel.ids[i], "_pos")]]~data[[paste0(schaefer.parcel.ids[i], "_rew")]])
+message(paste0(schaefer.parcel.ids[i]), " simple linear regression model")
+summary_regression <- summary(regression)
+print(summary(regression))
+p_value <- summary_regression$coefficients[2, 4]  # Extract the p-value for the main variable
+  if (p_value < 0.05) {  # Adjust the significance level as needed (e.g., 0.01, 0.001)
+    message(paste0("The p-value for ", schaefer.parcel.ids[i], "_rew is significant (p = ", round(p_value, 5), ")."))
+  }
+}
+```
