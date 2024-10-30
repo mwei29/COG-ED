@@ -1,0 +1,162 @@
+\documentclass{article}
+\addtolength{\oddsidemargin}{-1.25in}
+\addtolength{\evensidemargin}{-1.25in}
+\addtolength{\textwidth}{2.5in}
+\addtolength{\topmargin}{-.875in}
+\addtolength{\textheight}{1.75in}
+\begin{document}
+
+<<startup, echo=FALSE, message=FALSE, warning=FALSE>>=
+# MARCER COGED fMRI tasks, groupGLM results,MDD and HC difference
+# started 6 Nov 2023 by Emily Wei, adapting from Jo's template_GLMs_COGED_Schaefer_vol.rmw
+# Jenny's version: "/data/nil-external/ccp/COGED_PET/knitr/GLMs_NbackCOGED/fMRIPrep-Vol-beta-NbackCOGED-400Parcel-7Networks.Rnw"
+
+# 16 Dec 2022: The number of STATS fields for the valuationSV GLM can vary: it'll be shorter if the person only had one SV.
+# see basecamp MARCER message "fMRI GLM notes", 15 December 2022. Key bit: the first part of the STATS output is for meanResp, and the second is for the
+# SV, so if someone only had one SV, afni only models the meanResp. 
+# Removed ONs
+
+
+rm(list=ls());  
+options(warnPartialMatchDollar=TRUE);   # safety option
+
+##### shouldn't have to change code below here #####
+group.lbls <- c("MDD","HC") #group.lbls <- "MDD"
+glm.path <- paste0("/scratch2/weie/COGED_CODE/", group.lbls, "_parcelStats/COGED_parcelStats/"); 
+atlas.path <- "/data/MARCER/ATLASES/";  
+t.path <- paste0("/scratch2/weie/COGED_CODE/Stats/");
+
+subcort.tbl <- read.csv(paste0(atlas.path, "subcorticalKey.csv"), stringsAsFactors=FALSE);  # subcortical_MARCER3p0.nii.gz parcel labels
+Sch.hc.mean.tbl <- read.delim(paste0(t.path,"Schaefer2018_400x7_vol_HC_mean.txt"))
+Subcort.hc.mean.tbl <- read.delim(paste0(t.path,"subcortical_vol_HC_mean.txt"))
+Sch.mdd.mean.tbl <- read.delim(paste0(t.path,"Schaefer2018_400x7_vol_MDD_mean.txt"))
+Subcort.mdd.mean.tbl <- read.delim(paste0(t.path,"subcortical_vol_MDD_mean.txt"))
+t.Sch <- read.delim(paste0(t.path, "Schaefer2018_400x7_vol_robustttest.txt"))
+t.Subcort <- read.delim(paste0(t.path, "subcortical_vol_robustttest.txt"))
+
+fname <- "/data/MARCER/ATLASES/Schaefer2018_400Parcels_7Networks_order_info.txt";  # labels for the Schaefer parcels
+if (file.exists(fname)) {
+  fin <- file(fname, 'rt')
+  tmp <- readLines(fin);
+  close(fin); unlink(fin);
+  if (length(tmp) != 800) { stop("not expected Schaefer key."); }
+  tmp <- tmp[seq(from=1, to=800, by=2)];   # every-other entry is a label
+  sch.key <- gsub("7Networks_", "", tmp);   
+}
+@
+\noindent \texttt{Mean\textunderscore Diff\textunderscore boxplot.rnw} \par
+\noindent compiled \today\  \par
+\noindent \textbf{group} MARCER MDD and HC COGED group mean response difference, volumes. \par
+\noindent Y axis is the group mean BOLD response. \par
+\noindent There're 35 MDD and 44 HC included in this analysis. \par
+\noindent Robust unpaired t test was ran to test the difference between MDD's and HC's meanResp in evaluation phase and decision making phase. \par
+\noindent Evaluation phase is set between knots 3-5; decision making phase is set between knots 10-13. \par
+\vspace{0.2 cm} 
+\section*{Subcortical Parcels}
+\noindent Masks extracted from the cifti subcortical ROIs. \par
+
+<<code1, dev='pdf', cache=FALSE, echo=FALSE, fig.height=1.85, fig.width=7.5, fig.align='center', warning=FALSE>>=
+layout(matrix(1:4, 1:4)); #change columns to 4 to reflect the change with ONs
+par(mar=c(1.2, 1, 1.3, 0.5), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin. Default is c(5, 4, 4, 2) + 0.1.
+
+draw.plots <- function(which.set) {   # which.set <- "subcort"; # which.set <- "sch"
+  if (which.set == "subcort") { 
+    txt.lbl <- "subcortical";   # GLM "timecourses" file names
+    do.parcels <- 1:nrow(subcort.tbl);
+    do.columns <- subcort.tbl$HCP.label;   # timecourses column names corresponding to do.parcels
+  } 
+  if (which.set == "sch") { 
+    txt.lbl <- "Schaefer2018_400x7";  
+    do.parcels <- 1:400;   # 400 since Schaefer 400
+    do.columns <- do.parcels
+  } 
+  
+  y.lim <- c(-0.5,0.5); 
+  for (pid in do.parcels) {   #  pid <- 1
+    group.ids <- c(rep("HC", dim(Sch.hc.mean.tbl)[1]), rep("MDD", dim(Sch.mdd.mean.tbl)[1]));
+    if (which.set == "subcort") { 
+      Subcort.mean.eval <- c(Subcort.hc.mean.tbl[,pid], Subcort.mdd.mean.tbl[,pid]);
+      Subcort.mean.dec <- c(Subcort.hc.mean.tbl[,(pid+19)], Subcort.mdd.mean.tbl[,(pid+19)]);
+      p.tbl.eval <- data.frame(group.ids, Subcort.mean.eval);
+      p.tbl.dec <- data.frame(group.ids, Subcort.mean.dec);
+      p.ttl <- paste0(subcort.tbl$parcel.label[pid], subcort.tbl$hemisphere[pid]); 
+      p.lbl <- p.ttl;
+      #Graph evaluation
+      boxplot(p.tbl.eval$Subcort.mean.eval~p.tbl.eval$group.ids, ylim=y.lim, notch=TRUE); 
+      tout <- t.test(Subcort.hc.mean.tbl[,pid], mu=0);  # tout <- YuenTTest(hc.mean.tbl[,pid,2], mu=0, trim=do.trim)
+      text(x=1, y=0.35, labels=paste0("t=", round(tout$statistic, 2)));
+      tout <- t.test(Subcort.mdd.mean.tbl[,pid], mu=0) ;
+      text(x=2, y=0.35, labels=paste0("t=", round(tout$statistic, 2)));
+      tout <- t.Subcort[1,pid];
+      if (abs(tout) > 1) {text_color <- "red"
+      } else {
+        text_color <- "black"
+      }
+      text(x=1.5, y=0.45, labels=paste0("t=",round(tout, 2)), col = text_color);
+      mtext(paste(p.lbl, "Evaluation"), side=3, cex=0.6, line=0.1);
+      #Graph decision
+      boxplot(p.tbl.dec$Subcort.mean.dec~p.tbl.dec$group.ids, ylim=y.lim, notch=TRUE); 
+      tout <- t.test(Subcort.hc.mean.tbl[,(pid+19)], mu=0);  # tout <- YuenTTest(hc.mean.tbl[,pid,2], mu=0, trim=do.trim)
+      text(x=1, y=0.35, labels=paste0("t=", round(tout$statistic, 2)));
+      tout <- t.test(Subcort.mdd.mean.tbl[,(pid+19)], mu=0) ;
+      text(x=2, y=0.35, labels=paste0("t=", round(tout$statistic, 2)));
+      tout <- t.Subcort[3,pid];
+      if (abs(tout) > 1) {text_color <- "red"
+      } else {
+        text_color <- "black"
+      }
+      text(x=1.5, y=0.45, labels=paste0("t=",round(tout, 2)), col = text_color);
+      mtext(paste(p.lbl, "Decision"), side=3, cex=0.6, line=0.1)
+    }
+    if (which.set == "sch") { 
+      Sch.mean.eval <- c(Sch.hc.mean.tbl[,pid], Sch.mdd.mean.tbl[,pid]);
+      Sch.mean.dec <- c(Sch.hc.mean.tbl[,(pid+400)], Sch.mdd.mean.tbl[,(pid+400)]);
+      p.tbl.eval <- data.frame(group.ids, Sch.mean.eval);
+      p.tbl.dec <- data.frame(group.ids, Sch.mean.dec);
+      p.ttl <- sch.key[pid]; p.lbl <- paste0("p", pid); 
+      #Graph evaluation
+      boxplot(p.tbl.eval$Sch.mean.eval~p.tbl.eval$group.ids, ylim=y.lim, notch=TRUE); 
+      tout <- t.test(Sch.hc.mean.tbl[,pid], mu=0);  # tout <- YuenTTest(hc.mean.tbl[,pid,2], mu=0, trim=do.trim)
+      text(x=1, y=0.35, labels=paste0("t=", round(tout$statistic, 2)));
+      tout <- t.test(Sch.mdd.mean.tbl[,pid], mu=0) ;
+      text(x=2, y=0.35, labels=paste0("t=", round(tout$statistic, 2)));
+      tout <- t.Sch[1,pid];
+      if (abs(tout) > 1) {text_color <- "red"
+      } else {
+        text_color <- "black"
+      }
+      text(x=1.5, y=0.45, labels=paste0("t=",round(tout, 2)), col = text_color);
+      mtext(paste(p.lbl, p.ttl, "Evaluation"), side=3, cex=0.6, line=0.1);
+      #Graph decision
+      boxplot(p.tbl.dec$Sch.mean.dec~p.tbl.dec$group.ids, ylim=y.lim, notch=TRUE); 
+      tout <- t.test(Sch.hc.mean.tbl[,(pid+400)], mu=0);  # tout <- YuenTTest(hc.mean.tbl[,pid,2], mu=0, trim=do.trim)
+      text(x=1, y=0.35, labels=paste0("t=", round(tout$statistic, 2)));
+      tout <- t.test(Sch.mdd.mean.tbl[,(pid+400)], mu=0) ;
+      text(x=2, y=0.35, labels=paste0("t=", round(tout$statistic, 2)));
+      tout <- t.Sch[3,pid];
+      if (abs(tout) > 1) {text_color <- "red"
+      } else {
+        text_color <- "black"
+      }
+      text(x=1.5, y=0.45, labels=paste0("t=",round(tout, 2)), col = text_color);
+      mtext(paste(p.lbl, p.ttl, "Decision"), side=3, cex=0.6, line=0.1)
+    }
+  }
+}
+
+draw.plots("subcort");
+
+@
+
+\newpage
+\section*{Schaefer parcels}
+\noindent 400 parcels, 7 network ordering version. \par
+\vspace{0.2 cm}
+<<code2, dev='pdf', cache=FALSE, echo=FALSE, fig.height=1.85, fig.width=7.5, fig.align='center',warning=FALSE>>=
+layout(matrix(1:4, 1:4)); #1:4 to reflect the lack of ONs
+par(mar=c(1.2, 1, 1.3, 0.5), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin. Default is c(5, 4, 4, 2) + 0.1.
+draw.plots("sch");
+@
+\end{document}
