@@ -1,70 +1,62 @@
 ---
 title: "Cog-ED MARCER Behavioral Results"
-author: "EW"
+author: "Mengzhe Wei"
+date: "`r Sys.Date()`"
 date: "`r Sys.Date()`"
 output:
-  html_document: default
-  pdf_document: default
+  html_document:
+    theme: journal
+    toc: yes
+    toc_float:
+      collapsed: true
 ---
 # MARCER_CogEd_data
 ## Behavioral Session
-### There are 88 participants included in these analyses
+### There are 142(s) participants included in these analyses
 #### N.b. all error bars in this summary are 95% CIs
-Adapted from Jenny's code.
-
+Adapted from JC's code. Started again by MW in 12/10/24 to analyze MARCER full dataset.
 
 ```{r setup, warning=FALSE, message=FALSE}
-library(boxr);   
 rm(list=ls());
+library(boxr);   
 box_auth(); 
 wustl.box <- TRUE;
 #Packages
-library(lme4); library(knitr); library(kableExtra); library(correlation); library(RColorBrewer); library(tidyverse);library(boxr)
+library(lme4); library(knitr); library(kableExtra); library(correlation); library(RColorBrewer); library(tidyverse);library(boxr);library(readxl)
 source("summarySEwithin2.R")
 
 # as of 7 April 2023, these sub.ids have coged-MARCER-PID-converted.csv in box preprocessed_data
-#If PID changed, run the following
-##MARCER pre-processed
-#data_files <- box_ls('148056179835') 
-## Specify Box folder ID where files are stored
-#folder_id <- '148056179835'
-## List of participant IDs
-fCOGED.ids <- c("3008", "3051", "3081", "3085", "3093", "3097", "3105", "3153", "3165", "3200", "3217", 
-                "3218", "3225", "3235", "3251", "3287", "3328", "3347", "3348", "3355", "3358", "3366", 
-                "3390", "3406", "3444", "3475", "3478", "3499", "3525", "3547", "3604", "3615", "3710", 
-                "3725", "3736", "3867", "3868", "3904", "3905", "3936", "3942", "3958", "4001", "4078", 
-                "4123", "4308", "4323", "4500", "4550", "4694", "4756", "5148", "5177", "5433", "5614", 
-                "5663", "5885", "5929", "5948", "5999", "6428", "6457", "6524", "6762", "6812", "6822", 
-                "6931", "6978", "6995", "7080", "7124", "7213", "7384", "7449", "7616", "7668", "7750", 
-                "7823", "7875", "7902", "8000", "8016", "8130", "8150", "8271", "8305", "8406", "8578")
+# Specify Box folder ID where files are stored
+# folder_id <- '148056179835'
+# List of participant IDs
+in.path <- "C:/Users/Emotion/Documents/GIT-MW/COG-ED/Prep/SubjectSet/" 
+out.path <-"C:/Users/Emotion/Documents/GIT-MW/COG-ED/Analysis and Knitr/COGED behavioral/" 
+dir.desc <- "20250114";  
+sub.tbl <- read.table(paste0(in.path, dir.desc, "_subjectSet.txt"), stringsAsFactors=FALSE);
+sub.ids <- sub.tbl$sub.id[which(sub.tbl$COGED_CatchNonCatch == TRUE)]
 
-##Load demographic data 
-#file_name <- paste0("Project Maintenance Spreadsheet 041723.xlsx")
-#file_id <- box_search(file_name)
-#demo.path <- box_read(file_id, skip=29) %>% as.data.frame()
-##filter only participant with data
-#demo <- demo.path[demo.path$`Participant ID` %in% fCOGED.ids,]
-## View the final dataset
-#View(demo)
-#write.csv(demo, file = "demo.csv", row.names = FALSE)
+#Load demographic
+demo.tbl <- read_excel(paste0(in.path,"data_per_participant.xlsx"))
+#filter only participant with scan data
+demo <- demo.tbl[demo.tbl$sub.id %in% sub.ids,]
 
-##Load coged in follow up data
-## Create an empty dataframe to store the results
-#WM.coged.path <- data.frame()
-## Loop over participant IDs and read in the corresponding file
-#for (id in fCOGED.ids) {
-  ## Generate the file name
-  #file_name <- paste0("coged-MARCER-", id, "-converted.csv")
-  ## Search for the file ID in the specified Box folder
-  #file_id <- box_search(file_name)
-  ## Read in the file and store the data as a dataframe
-  #file_data <- box_read(file_id) %>% as.data.frame()
-  ## Append the data to the WM.coged.path dataframe
-  #WM.coged.path <- bind_rows(WM.coged.path, file_data)
-#}
-## View the final dataset
-#View(WM.coged.path)
-#write.csv(WM.coged.path, file = "WM.coged.csv", row.names = FALSE)
+#Load COGED follow up
+# Create an empty dataframe to store the results
+coged.lab <- data.frame()
+# Loop over participant IDs and read in the corresponding file
+for (id in fCOGED.ids) {
+# Generate the file name
+file_name <- paste0("coged-MARCER-", id, "-converted.csv")
+# Search for the file ID in the specified Box folder
+file_id <- box_search(file_name)
+# Read in the file and store the data as a dataframe
+file_data <- box_read(file_id) %>% as.data.frame()
+# Append the data to the WM.coged.path dataframe
+WM.coged.path <- bind_rows(WM.coged.path, file_data)
+}
+# View the final dataset
+View(WM.coged.path)
+write.csv(WM.coged.path, file = "WM.coged.csv", row.names = FALSE)
 
 
 ##load coged in fmri
