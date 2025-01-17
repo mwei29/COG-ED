@@ -14,7 +14,7 @@ output:
 ## Behavioral Session
 #### There are 142 participants that have scan session data. 134 participants have COGED data, thus included in these analyses.
 #### N.b. all error bars in this summary are 95% CIs
-Started by MW in 12/10/24 to analyze MARCER COGED full behavioral data. I have updated a lot of code compared to the original version to make it cleaner.
+Started by MW in 12/10/24 to analyze MARCER COGED full behavioral data. The last version was CogED_MARCER_Behavior_2023.Rmd made by MW, adapted from JC's COGED PETMR project, for MW's SSM & ADAA projects in 2023.
 
 ```{r setup, warning=FALSE, message=FALSE}
 rm(list=ls());
@@ -26,13 +26,13 @@ box_auth();
 in.path <- "C:/Users/Emotion/Documents/GIT-MW/COG-ED/Prep/SubjectSet/" 
 out.path <-"C:/Users/Emotion/Documents/GIT-MW/COG-ED/Analysis and Knitr/COGED behavioral/" 
 dir.desc <- "20250114";  
-sub.tbl <- read.table(paste0(in.path, dir.desc, "_subjectSet.txt"), stringsAsFactors=FALSE);
+sub.tbl <- read.table(paste0(in.path, dir.desc, "_subjectSet.txt"), stringsAsFactors=FALSE); #Made from GIT/MARCER/weie/COGED/defineSubjectSet.R
 sub.ids <- sub.tbl$sub.id[which(sub.tbl$COGED_CatchNonCatch == TRUE)]
 length(sub.ids) # Number of participants included in this analysis
  
 # # Load demographic
-# demo.tbl <- read_excel(paste0(in.path,"data_per_participant.xlsx"))
-# eth.tbl <- read_excel(paste0(in.path,"ethnicity.xlsx"))
+# demo.tbl <- read_excel(paste0(in.path,"data_per_participant.xlsx")) #https://wustl.app.box.com/file/1566635094447?s=49s7ro9bu7jn4tkvjihc69ut3gikmqc4
+# eth.tbl <- read_excel(paste0(in.path,"ethnicity.xlsx")) #based on MARCER master spreadsheet
 # demo.tbl <- demo.tbl[demo.tbl$sub.id %in% sub.ids,] # filter only participant with scan data
 # demo$sub.id<-as.integer(demo$sub.id)
 # eth.tbl$PID<-as.integer(eth.tbl$PID)
@@ -82,10 +82,10 @@ nback.fmri <- read.csv("nback.fmri.csv")
 ```{r Demo, warning=FALSE, message=FALSE}
 #Age
 demo %>%
-  group_by(`Age Group`) %>%
+  group_by(Age.Group) %>%
   summarise(total_count=n()) 
 demo %>%
-  group_by(`Age Group`,`Age Bin`) %>%
+  group_by(Age.Group,Age.Bin) %>%
   summarise(total_count=n()) 
 describe(demo$Age)
 
@@ -98,48 +98,48 @@ demo %>% select(MDD_Status) %>%
   count(MDD_Status)
 
 demo %>% 
-  group_by(`Age Group`,MDD_Status,Gender) %>%
+  group_by(Age.Group,MDD_Status,Gender) %>%
   summarise(total_count=n()) 
 
 #Race
 demo %>% select(Race) %>%
   count(Race)
 demo %>% 
-  group_by(`Age Group`,MDD_Status,Race) %>%
+  group_by(Age.Group,MDD_Status,Race) %>%
   summarise(total_count=n()) 
 
 demo %>% select(Ethnicity) %>%
   count(Ethnicity)
 ```
 
-### N-Back Performance
+### N-Back Performance - in lab
 
 ```{r nback, warning=F, message=F}
 #Summarizing n-back performance
 nback.lab <- left_join(nback.lab, demo %>% 
-                       select(sub.id, Group.Assignment, Age.Group), 
-                       by = c("subID" = "Participant.ID")) %>% 
-  select(subID, level, kind, acc, RT, Group.Assignment, Age.Group) %>% 
+                       select(sub.id, MDD_Status, Age.Group,Age.Bin,Age), 
+                       by = c("subID" = "sub.id")) %>% 
+  select(subID, level, kind, acc, RT, MDD_Status, Age.Group) %>% 
   mutate(level = factor(level, levels = c(1,2,3,4), labels = c("Black","Red","Blue","Purple")),
          taskCode = factor(level, levels =  c("Black","Red","Blue","Purple"), labels = c(0,1,2,3)),
-         groupCode = factor (Group.Assignment, levels = c("Healthy control", "MDD"), labels = c(0,1)),
+         groupCode = factor (MDD_Status, levels = c("Healthy control", "MDD"), labels = c(0,1)),
          ageCode = factor (Age.Group, levels = c("MA", "OA"), labels = c(0,1)),
          type = factor(kind, levels = c(-1,0,1), labels = c("lure","non-target","target")),
          hit = if_else((kind == 1 & acc == 1), 1, 0),
          FA = if_else((kind == 0 & acc == 0), 1, 0)) %>%
   filter(type != "lure")
-nback.clean$taskCode <- as.numeric(as.character(nback.clean$taskCode))
-nback.clean$ageCode <- as.numeric(as.character(nback.clean$ageCode))
-nback.clean$groupCode <- as.numeric(as.character(nback.clean$groupCode))
+nback.lab$taskCode <- as.numeric(as.character(nback.lab$taskCode))
+nback.lab$ageCode <- as.numeric(as.character(nback.lab$ageCode))
+nback.lab$groupCode <- as.numeric(as.character(nback.lab$groupCode))
 
-#Accuracy - without group
-m.nback.lab.acc <- glmer(data = nback.clean, acc ~ taskCode + (1 | subID), family = "binomial")
-summary(m.nback.lab.acc)
+#Accuracy - without group; as expected, accuracy goes down as task becomes harder
+nback.lab.acc <- glmer(data = nback.lab, acc ~ taskCode + (1 | subID), family = "binomial")
+summary(nback.lab.acc)
 
-nback.acc <- summarySEwithin2(nback.clean, measurevar = "acc", withinvars = c("level","kind"), idvar = "subID") %>%
+nback.lab.acc.sum <- summarySEwithin2(nback.lab, measurevar = "acc", withinvars = c("level","kind"), idvar = "subID") %>%
           mutate(kind = factor(kind, levels = c(0,1), labels = c("non-target","target"))) %>%
   rename("trial_type" = kind) %>% select(c(level, trial_type, acc, sd, se, ci)) %>% arrange(level)
-kable(nback.acc, digits = 3) %>% kable_styling()
+kable(nback.lab.acc.sum, digits = 3) %>% kable_styling()
 
 p.nback.acc <- ggplot(nback.acc, aes(x=level, y=acc, fill=trial_type)) + 
   theme(plot.title = element_text(hjust = 0.5), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) +
@@ -149,27 +149,27 @@ p.nback.acc <- ggplot(nback.acc, aes(x=level, y=acc, fill=trial_type)) +
 p.nback.acc + scale_fill_brewer(palette = "Paired",  name="Trial Type", labels=c("Non-Target","Target"))
 
 #Accuracy - with groups
-m.nback.lab.acc2 <- glmer(data = nback.clean, acc ~ taskCode + ageCode + groupCode + (1 | subID), family = "binomial")
+m.nback.lab.acc2 <- glmer(data = nback.lab, acc ~ taskCode + ageCode + groupCode + (1 | subID), family = "binomial")
 summary(m.nback.lab.acc2)
-nback.acc2 <- summarySEwithin2(nback.clean, measurevar = "acc", withinvars = c("level","kind","Group.Assignment","Age.Group"), idvar = "subID") %>%
+nback.acc2 <- summarySEwithin2(nback.lab, measurevar = "acc", withinvars = c("level","kind","MDD_Status","Age.Group"), idvar = "subID") %>%
           mutate(kind = factor(kind, levels = c(0,1), labels = c("non-target","target"))) %>%
           rename("trial_type" = kind) %>% 
-          select(c(level, trial_type, acc, sd, se, ci, Group.Assignment, Age.Group)) %>%
+          select(c(level, trial_type, acc, sd, se, ci, MDD_Status, Age.Group)) %>%
           arrange(level)
 p.nback.acc2 <- ggplot(nback.acc2, aes(x=level, y=acc, fill=trial_type, group=trial_type)) + 
   theme(plot.title = element_text(hjust = 0.5), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) +
   geom_bar(stat="identity", position=position_dodge(), alpha=.45, size=1.1) +
   geom_errorbar(position=position_dodge(width=0.9), aes(ymin=acc-ci, ymax=acc+ci), width=.2, size=1.1) +  
   xlab("N-Back Level") + ylab("Accuracy") + ggtitle("N-Back Performance (Accuracy)") +
-  facet_grid(Group.Assignment ~ Age.Group) + 
+  facet_grid(MDD_Status ~ Age.Group) + 
   scale_fill_brewer(palette = "Paired",  name="Trial Type", labels=c("Non-Target","Target"))
 p.nback.acc2
 
 #RT
 
-m.nback.lab.RT <- lmer(data = nback.clean, RT ~ taskCode + (1 | subID))
+m.nback.lab.RT <- lmer(data = nback.lab, RT ~ taskCode + (1 | subID))
 summary(m.nback.lab.RT)
-nback.RT <- summarySEwithin2(nback.clean, measurevar = "RT", withinvars = c("level","kind"), idvar = "subID") %>%
+nback.RT <- summarySEwithin2(nback.lab, measurevar = "RT", withinvars = c("level","kind"), idvar = "subID") %>%
           mutate(kind = factor(kind, levels = c(0,1), labels = c("non-target","target"))) %>%
   rename("trial_type" = kind) %>% select(c(level, trial_type, RT, sd, se, ci)) %>% arrange(level)
 kable(nback.RT, digits = 3) %>% kable_styling()
@@ -182,11 +182,11 @@ p.nback.RT <- ggplot(nback.RT, aes(x=level, y=RT, fill=trial_type)) +
 p.nback.RT + scale_fill_brewer(palette = "Paired",  name="Trial Type", labels=c("Non-Target","Target"))
 
 #RT - with group
-m.nback.lab.RT2 <- lmer(data = nback.clean, RT ~ taskCode +  ageCode + groupCode + (1 | subID))
+m.nback.lab.RT2 <- lmer(data = nback.lab, RT ~ taskCode +  ageCode + groupCode + (1 | subID))
 summary(m.nback.lab.RT2)
-nback.RT2 <- summarySEwithin2(nback.clean, measurevar = "RT", withinvars = c("level","kind","Group.Assignment","Age.Group"), idvar = "subID") %>%
+nback.RT2 <- summarySEwithin2(nback.lab, measurevar = "RT", withinvars = c("level","kind","MDD_Status","Age.Group"), idvar = "subID") %>%
           mutate(kind = factor(kind, levels = c(0,1), labels = c("non-target","target"))) %>%
-  rename("trial_type" = kind) %>% select(c(level, trial_type, RT, sd, se, ci, Group.Assignment, Age.Group)) %>% arrange(level)
+  rename("trial_type" = kind) %>% select(c(level, trial_type, RT, sd, se, ci, MDD_Status, Age.Group)) %>% arrange(level)
 kable(nback.RT2, digits = 3) %>% kable_styling()
 
 p.nback.RT2 <- ggplot(nback.RT2, aes(x=level, y=RT, fill=trial_type, group=trial_type)) + 
@@ -194,7 +194,7 @@ p.nback.RT2 <- ggplot(nback.RT2, aes(x=level, y=RT, fill=trial_type, group=trial
   geom_bar(stat="identity", position=position_dodge(), alpha=.45, size=1.1) +
   geom_errorbar(position=position_dodge(width=0.9), aes(ymin=RT-ci, ymax=RT+ci), width=.2, size=1.1) +  
   xlab("N-Back Level") + ylab("RT (seconds)") + ggtitle("N-Back Performance (RT)") +
-  facet_grid(Group.Assignment ~ Age.Group) + scale_fill_brewer(palette = "Paired",  name="Trial Type", labels=c("Non-Target","Target"))
+  facet_grid(MDD_Status ~ Age.Group) + scale_fill_brewer(palette = "Paired",  name="Trial Type", labels=c("Non-Target","Target"))
 p.nback.RT2
 ```
 
@@ -205,11 +205,11 @@ p.nback.RT2
 ```{r SV_CogED, warning=F, message=F}
 #clean data frame with Cog-ED SV estimates and join data across both domains (i.e., WM, speech)
 d.coged.wm <- left_join(WM.coged, demo.sum %>% 
-                       select(Participant.ID, Group.Assignment, Age.Group), 
+                       select(Participant.ID, MDD_Status, Age.Group), 
                        by = c("subID" = "Participant.ID")) %>%
   group_by(subID) %>%
   mutate(ageCode = factor(Age.Group, levels = c("MA","OA"), labels = c(0,1)),
-         groupCode = factor (Group.Assignment, levels = c("Healthy control", "MDD"), labels = c(0,1)),
+         groupCode = factor (MDD_Status, levels = c("Healthy control", "MDD"), labels = c(0,1)),
          taskCode = factor(task, levels=c(1,2,3), labels=c(-1,0,1)),
          task = factor(task, levels=c(1,2,3), labels=c("Red","Blue","Purple")))
 
@@ -217,7 +217,7 @@ d.coged.wm$taskCode <- as.numeric(as.character(d.coged.wm$taskCode))
 d.coged.wm$ageCode <- as.numeric(as.character(d.coged.wm$ageCode))
 d.coged.wm$groupCode <- as.numeric(as.character(d.coged.wm$groupCode))
 
-d.coged.wm.sub <- d.coged.wm %>% group_by(subID, task, Age.Group, Group.Assignment) %>%
+d.coged.wm.sub <- d.coged.wm %>% group_by(subID, task, Age.Group, MDD_Status) %>%
 summarise(meanSV = mean(SV))
 
 #testing for differences across task & condition (red, blue, purple)
@@ -232,7 +232,7 @@ summary(m.SV.age.group)
 
 ``` {r CogED_SV_Plot, warning = F, message = F}
 #summary of data for plotting
-CogED_sum <- summarySEwithin2(d.coged.wm, measurevar = "SV", withinvars = c("task","Group.Assignment","Age.Group"), idvar = "subID")
+CogED_sum <- summarySEwithin2(d.coged.wm, measurevar = "SV", withinvars = c("task","MDD_Status","Age.Group"), idvar = "subID")
 #Plotting
 fig.SV <- ggplot(CogED_sum, aes(x=task, y=SV, fill=task, color=task)) + 
   theme(plot.title = element_text(hjust = 0.5), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"), axis.title.y = element_text(face="bold", size=16),legend.title = element_text(face="bold", size=16)) +
@@ -243,7 +243,7 @@ fig.SV <- ggplot(CogED_sum, aes(x=task, y=SV, fill=task, color=task)) +
   coord_cartesian(ylim=c(0,1)) +
   scale_x_discrete(breaks=NULL) +
   xlab("") + ylab("Subjective Value") +
-  facet_grid(Group.Assignment ~ Age.Group) + 
+  facet_grid(MDD_Status ~ Age.Group) + 
   scale_fill_brewer(palette = "Set1",  name="Task Effort Level", labels=c("Low","Medium","High")) + scale_color_brewer(palette = "Set1", name="Task Effort Level", labels=c("Low","Medium","High"))
 fig.SV
 #Plotting with participants' lines
@@ -256,13 +256,13 @@ fig.SV.lines <- ggplot(CogED_sum, aes(x=task, y=SV)) +
   geom_line(data = d.coged.wm.sub, aes(x=task, y=meanSV, group=subID, colour = factor(subID)), alpha = .5) +
   coord_cartesian(ylim=c(0,1)) +
   xlab("Task") + ylab("Subjective Value") +
-  facet_grid(Group.Assignment ~ Age.Group)
+  facet_grid(MDD_Status ~ Age.Group)
 fig.SV.discounting <- fig.SV.lines + guides(colour=FALSE)
 fig.SV.discounting
 
 #summarizing average SV
-average.SV <- d.coged.wm %>% select(subID, SV, Group.Assignment, Age.Group) %>%
-  group_by(Group.Assignment,Age.Group) %>%
+average.SV <- d.coged.wm %>% select(subID, SV, MDD_Status, Age.Group) %>%
+  group_by(MDD_Status,Age.Group) %>%
   summarise(SV_avg = mean(SV)) 
 average.SV
 ```
@@ -278,16 +278,16 @@ NASA.wm.clean <- WM.NASA[WM.NASA$participant_id %in% fCOGED.ids,] %>%
   rename(mental_demand = mdemand, 
          phsyical_demand = pdemand, 
          temporal_demand = tdemand) %>%
-  left_join(demo.sum %>% select(Participant.ID, Group.Assignment, Age.Bin, Age.Group, Age), 
+  left_join(demo.sum %>% select(Participant.ID, MDD_Status, Age.Bin, Age.Group, Age), 
             by = c("participant_id" = "Participant.ID")) 
 
 #Mental Demand Ratings
-NASA.m.demand <- NASA.wm.clean %>% select(participant_id, Task, mental_demand, Group.Assignment,Age.Group) %>%
-  group_by(participant_id, Task,Group.Assignment,Age.Group) %>%
+NASA.m.demand <- NASA.wm.clean %>% select(participant_id, Task, mental_demand, MDD_Status,Age.Group) %>%
+  group_by(participant_id, Task,MDD_Status,Age.Group) %>%
   dplyr::summarise(mean.m.demand = mean(mental_demand)) %>%
   mutate(taskCode = factor(Task, levels = c("black", "red", "blue", "purple"), labels = c(0,1,2,3)),
          ageCode = factor(Age.Group, levels = c("MA","OA"), labels = c(0,1)),
-         groupCode = factor (Group.Assignment, levels = c("Healthy control", "MDD"), labels = c(0,1)))
+         groupCode = factor (MDD_Status, levels = c("Healthy control", "MDD"), labels = c(0,1)))
 NASA.m.demand$taskCode <- as.numeric(as.character(NASA.m.demand$taskCode))
 NASA.m.demand$ageCode <- as.numeric(as.character(NASA.m.demand$ageCode))
 NASA.m.demand$groupCode <- as.numeric(as.character(NASA.m.demand$groupCode))
@@ -299,7 +299,7 @@ summary(m.mentalDemand)
 m.mentalDemand2 <- lmer(mean.m.demand ~ taskCode + ageCode + groupCode + (1 | participant_id), data = NASA.m.demand)
 summary(m.mentalDemand2)
 
-NASA_mdemand_sum <- summarySEwithin2(NASA.m.demand, measurevar = "mean.m.demand", withinvars = c("Task", "Group.Assignment","Age.Group"), idvar = "participant_id")
+NASA_mdemand_sum <- summarySEwithin2(NASA.m.demand, measurevar = "mean.m.demand", withinvars = c("Task", "MDD_Status","Age.Group"), idvar = "participant_id")
 NASA_mdemand_sum$Task <- factor(NASA_mdemand_sum$Task, levels = c("black", "red", "blue", "purple"), labels = c("black", "red", "blue", "purple"))
 
 #plotting NASA ratings
@@ -308,7 +308,7 @@ p.m.demand <- ggplot(NASA_mdemand_sum, aes(x=Task, y=mean.m.demand)) +
   geom_bar(stat="identity", position=position_dodge()) +
   geom_errorbar(position=position_dodge(width=0.9), aes(ymin=mean.m.demand-ci, ymax=mean.m.demand+ci), width=.2) +  
   xlab("Task") + ylab("Mental Demand") + ggtitle("Self-Reported Mental Demand") +
-  facet_grid(Group.Assignment ~ Age.Group)
+  facet_grid(MDD_Status ~ Age.Group)
 p.m.demand
 
 #Effort Ratings
@@ -319,12 +319,12 @@ NASA.effort <- NASA.wm.clean %>%
     Task == "blue" ~ blue_effort,
     Task == "purple" ~ purple_effort
   )) %>%
-  select(participant_id, Task, effort,Group.Assignment,Age.Group) %>%
-  group_by(participant_id, Task,Group.Assignment,Age.Group) %>%
+  select(participant_id, Task, effort,MDD_Status,Age.Group) %>%
+  group_by(participant_id, Task,MDD_Status,Age.Group) %>%
   dplyr::summarise(mean.effort = mean(effort)) %>%
   mutate(taskCode = factor(Task, levels = c("black", "red", "blue", "purple"), labels = c(0,1,2,3)),
          ageCode = factor(Age.Group, levels = c("MA","OA"), labels = c(0,1)),
-         groupCode = factor (Group.Assignment, levels = c("Healthy control", "MDD"), labels = c(0,1)))
+         groupCode = factor (MDD_Status, levels = c("Healthy control", "MDD"), labels = c(0,1)))
 NASA.effort$taskCode <- as.numeric(as.character(NASA.effort$taskCode))
 NASA.effort$ageCode <- as.numeric(as.character(NASA.effort$ageCode))
 NASA.effort$groupCode <- as.numeric(as.character(NASA.effort$groupCode))
@@ -335,7 +335,7 @@ summary(m.effort)
 m.effort2 <- lmer(mean.effort ~ taskCode + ageCode + groupCode + (1 | participant_id), data = NASA.effort)
 summary(m.effort2)
 
-NASA_effort_sum <- summarySEwithin2(NASA.effort, measurevar = "mean.effort", withinvars = c("Task", "Group.Assignment","Age.Group"), idvar = "participant_id")
+NASA_effort_sum <- summarySEwithin2(NASA.effort, measurevar = "mean.effort", withinvars = c("Task", "MDD_Status","Age.Group"), idvar = "participant_id")
 NASA_effort_sum$Task <- factor(NASA_effort_sum$Task, levels = c("black", "red", "blue", "purple"), labels = c("black", "red", "blue", "purple"))
 
 #plotting NASA ratings
@@ -344,7 +344,7 @@ p.effort <- ggplot(NASA_effort_sum, aes(x=Task, y=mean.effort)) +
   geom_bar(stat="identity", position=position_dodge()) +
   geom_errorbar(position=position_dodge(width=0.9), aes(ymin=mean.effort-ci, ymax=mean.effort+ci), width=.2) +  
   xlab("Task") + ylab("Effort") + ggtitle("Self-Reported Effort") +
-  facet_grid(Group.Assignment ~ Age.Group)
+  facet_grid(MDD_Status ~ Age.Group)
 p.effort
 
 #Frustration Ratings
@@ -355,12 +355,12 @@ NASA.frust <- NASA.wm.clean %>%
     Task == "blue" ~ blue_frustration,
     Task == "purple" ~ purple_frustration
   )) %>%
-  select(participant_id, Task, frustration,Group.Assignment,Age.Group) %>%
-  group_by(participant_id, Task,Group.Assignment,Age.Group) %>%
+  select(participant_id, Task, frustration,MDD_Status,Age.Group) %>%
+  group_by(participant_id, Task,MDD_Status,Age.Group) %>%
   dplyr::summarise(mean.frust = mean(frustration)) %>%
   mutate(taskCode = factor(Task, levels = c("black", "red", "blue", "purple"), labels = c(0,1,2,3)),
          ageCode = factor(Age.Group, levels = c("MA","OA"), labels = c(0,1)),
-         groupCode = factor (Group.Assignment, levels = c("Healthy control", "MDD"), labels = c(0,1)))
+         groupCode = factor (MDD_Status, levels = c("Healthy control", "MDD"), labels = c(0,1)))
 NASA.frust$taskCode <- as.numeric(as.character(NASA.frust$taskCode))
 NASA.frust$ageCode <- as.numeric(as.character(NASA.frust$ageCode))
 NASA.frust$groupCode <- as.numeric(as.character(NASA.frust$groupCode))
@@ -372,7 +372,7 @@ summary(m.frust)
 m.frust2 <- lmer(mean.frust ~ taskCode + ageCode + groupCode + (1 | participant_id), data = NASA.frust)
 summary(m.frust2)
 
-NASA_frust_sum <- summarySEwithin2(NASA.frust, measurevar = "mean.frust", withinvars = c("Task", "Group.Assignment","Age.Group"), idvar = "participant_id")
+NASA_frust_sum <- summarySEwithin2(NASA.frust, measurevar = "mean.frust", withinvars = c("Task", "MDD_Status","Age.Group"), idvar = "participant_id")
 NASA_frust_sum$Task <- factor(NASA_frust_sum$Task, levels = c("black", "red", "blue", "purple"), labels = c("black", "red", "blue", "purple"))
 
 #plotting NASA ratings
@@ -381,7 +381,7 @@ p.frust <- ggplot(NASA_frust_sum, aes(x=Task, y=mean.frust)) +
   geom_bar(stat="identity", position=position_dodge()) +
   geom_errorbar(position=position_dodge(width=0.9), aes(ymin=mean.frust-ci, ymax=mean.frust+ci), width=.2) +  
   xlab("Task") + ylab("Frustration") + ggtitle("Self-Reported Frustration")+
-  facet_grid(Group.Assignment ~ Age.Group)
+  facet_grid(MDD_Status ~ Age.Group)
 p.frust
 ```
 
@@ -397,10 +397,10 @@ nback.fmri.clean <- nback.fmri %>% filter(resp != 9) %>%select(subID, level, kin
          hit = if_else((kind == 1 & acc == 1), 1, 0),
          FA = if_else((kind == 0 & acc == 0), 1, 0)) %>%
   filter(type != "lure") %>%
-  left_join(demo.sum %>% select(Participant.ID, Group.Assignment, Age.Bin, Age.Group, Age), 
+  left_join(demo.sum %>% select(Participant.ID, MDD_Status, Age.Bin, Age.Group, Age), 
             by = c("subID" = "Participant.ID")) %>%
   mutate( ageCode = factor(Age.Group, levels = c("MA","OA"), labels = c(0,1)),
-         groupCode = factor (Group.Assignment, levels = c("Healthy control", "MDD"), labels = c(0,1)))
+         groupCode = factor (MDD_Status, levels = c("Healthy control", "MDD"), labels = c(0,1)))
 nback.fmri.clean$taskCode <- as.numeric(as.character(nback.fmri.clean$taskCode))
 nback.fmri.clean$ageCode <- as.numeric(as.character(nback.fmri.clean$ageCode))
 nback.fmri.clean$groupCode <- as.numeric(as.character(nback.fmri.clean$groupCode))
@@ -411,9 +411,9 @@ m.nback.acc.fmri2 <- glmer(data = nback.fmri.clean, acc ~ taskCode + ageCode + g
 summary(m.nback.acc.fmri2)
 
 #Accuracy
-nback.fmri.acc <- summarySEwithin2(nback.fmri.clean, measurevar = "acc", withinvars = c("level","kind","Group.Assignment","Age.Group"), idvar = "subID") %>%
+nback.fmri.acc <- summarySEwithin2(nback.fmri.clean, measurevar = "acc", withinvars = c("level","kind","MDD_Status","Age.Group"), idvar = "subID") %>%
           mutate(kind = factor(kind, levels = c(0,1), labels = c("non-target","target"))) %>%
-  rename("trial_type" = kind) %>% select(c(level, trial_type, acc, sd, se, ci, Group.Assignment,Age.Group)) %>% arrange(level)
+  rename("trial_type" = kind) %>% select(c(level, trial_type, acc, sd, se, ci, MDD_Status,Age.Group)) %>% arrange(level)
 kable(nback.fmri.acc, digits = 3) %>% kable_styling()
 
 p.nback.fmri.acc <- ggplot(nback.fmri.acc, aes(x=level, y=acc, fill=trial_type)) + 
@@ -422,7 +422,7 @@ p.nback.fmri.acc <- ggplot(nback.fmri.acc, aes(x=level, y=acc, fill=trial_type))
   geom_errorbar(position=position_dodge(width=0.9), aes(ymin=acc-ci, ymax=acc+ci), width=.2, size=1.1) +  
   xlab("N-Back Level") + ylab("Accuracy") + ggtitle("N-Back fMRI Performance (Accuracy)") + 
   scale_fill_brewer(palette = "Paired",  name="Trial Type", labels=c("Non-Target","Target"))+
-  facet_grid(Group.Assignment ~ Age.Group)
+  facet_grid(MDD_Status ~ Age.Group)
 nback.fmri.acc
 
 #RT
@@ -431,9 +431,9 @@ summary(m.nback.RT.fmri)
 m.nback.RT.fmri2 <- lmer(data = nback.fmri.clean, RT ~ taskCode + ageCode + groupCode + (1|subID))
 summary(m.nback.RT.fmri2)
 
-nback.fmri.RT <- summarySEwithin2(nback.fmri.clean, measurevar = "RT", withinvars = c("level","kind","Group.Assignment","Age.Group"), idvar = "subID") %>%
+nback.fmri.RT <- summarySEwithin2(nback.fmri.clean, measurevar = "RT", withinvars = c("level","kind","MDD_Status","Age.Group"), idvar = "subID") %>%
           mutate(kind = factor(kind, levels = c(0,1), labels = c("non-target","target"))) %>%
-  rename("trial_type" = kind) %>% select(c(level, trial_type, RT, sd, se, ci, Group.Assignment,Age.Group)) %>% arrange(level)
+  rename("trial_type" = kind) %>% select(c(level, trial_type, RT, sd, se, ci, MDD_Status,Age.Group)) %>% arrange(level)
 kable(nback.fmri.RT, digits = 3) %>% kable_styling()
 
 p.nback.fmri.RT <- ggplot(nback.fmri.RT, aes(x=level, y=RT, fill=trial_type)) + 
@@ -442,7 +442,7 @@ p.nback.fmri.RT <- ggplot(nback.fmri.RT, aes(x=level, y=RT, fill=trial_type)) +
   geom_errorbar(position=position_dodge(width=0.9), aes(ymin=RT-ci, ymax=RT+ci), width=.2, size=1.1) +  
   xlab("N-Back Level") + ylab("RT (seconds)") + ggtitle("N-Back fMRI Performance (RT)")+ 
   scale_fill_brewer(palette = "Paired",  name="Trial Type", labels=c("Non-Target","Target"))+
-  facet_grid(Group.Assignment ~ Age.Group)
+  facet_grid(MDD_Status ~ Age.Group)
 p.nback.fmri.RT
 
 nback.fmri.performance <- nback.fmri.clean %>% group_by(subID, level) %>%
@@ -462,18 +462,18 @@ wm.coged.fmri.clean <- WM.coged.fmri %>% filter(trial > 45) %>% filter(choice !=
                              if_else((proxType == "biased" & biasType == "high"), "high-biased", "low-biased")))),
          choseHard = if_else((choice == 1), 0, 1),
          bias = if_else((biasType == "high" & choseHard == 1 | biasType == "low" & choseHard == 0), "pro", "anti"))%>%
-  left_join(demo.sum %>% select(Participant.ID, Group.Assignment, Age.Bin, Age.Group, Age), 
+  left_join(demo.sum %>% select(Participant.ID, MDD_Status, Age.Bin, Age.Group, Age), 
             by = c("subID" = "Participant.ID")) 
 
 #The breakdown for those who have fmri coged data
 fmri.age.sum <- wm.coged.fmri.clean %>%
   distinct(subID, .keep_all = TRUE) %>%
-  group_by(Age.Group, Group.Assignment) %>%
+  group_by(Age.Group, MDD_Status) %>%
   summarise(total_count=n()) %>%
   as.data.frame()
 fmri.age.sum
 
- wm.coged.fmri.hardChoice <- wm.coged.fmri.clean %>% select(subID, trialType, choseHard, Group.Assignment,Age.Group) %>% group_by(subID, trialType, Group.Assignment,Age.Group) %>%
+ wm.coged.fmri.hardChoice <- wm.coged.fmri.clean %>% select(subID, trialType, choseHard, MDD_Status,Age.Group) %>% group_by(subID, trialType, MDD_Status,Age.Group) %>%
    summarise(n_choice = n(), n_hardChoice = sum(choseHard)) %>%
    mutate(propHard = n_hardChoice/n_choice)
  
@@ -484,7 +484,7 @@ wm.coged.fmri.hardChoice.subj <- wm.coged.fmri.clean %>% select(subID, trialType
 wm.coged.fmri.hardChoice.subj.sum <- wm.coged.fmri.hardChoice.subj %>%
   summarise(meanPropHard = mean(propHard), sdPropHard = sd(propHard))
  
-wm.coged.prophard.sum <- summarySEwithin2(data = wm.coged.fmri.hardChoice, measurevar = "propHard", withinvars = c("trialType","Group.Assignment","Age.Group"), idvar = "subID")
+wm.coged.prophard.sum <- summarySEwithin2(data = wm.coged.fmri.hardChoice, measurevar = "propHard", withinvars = c("trialType","MDD_Status","Age.Group"), idvar = "subID")
 wm.coged.prophard.sum$trialType <- factor(wm.coged.prophard.sum$trialType, levels = c("high-catch", "high-biased", "low-biased", "low-catch"), 
                                              labels = c("high-catch", "high-biased", "low-biased", "low-catch"))
 
@@ -495,11 +495,11 @@ p.wm.coged.hardChoice <- ggplot(wm.coged.prophard.sum, aes(x=trialType, y=propHa
   geom_errorbar(position=position_dodge(width=0.9), aes(ymin=propHard-ci, ymax=propHard+ci), width=.2, size=1.1) + 
     coord_cartesian(ylim=c(0,1.05)) +
   xlab("Trial Type") + ylab("Proportion Hard Choice") + ggtitle("WM Cog-ED Choice Behavior")+
-  facet_grid(Group.Assignment ~ Age.Group)
+  facet_grid(MDD_Status ~ Age.Group)
 p.wm.coged.hardChoice
 
 #summarizing RT from Cog-ED choices
-wm.coged.fmri.RT.sum <- summarySEwithin2(data = wm.coged.fmri.clean, measurevar = "choiceRT", withinvars = c("trialType","bias","Group.Assignment","Age.Group"), idvar = "subID")
+wm.coged.fmri.RT.sum <- summarySEwithin2(data = wm.coged.fmri.clean, measurevar = "choiceRT", withinvars = c("trialType","bias","MDD_Status","Age.Group"), idvar = "subID")
 wm.coged.fmri.RT.sum$trialType <- factor(wm.coged.fmri.RT.sum$trialType, levels = c("high-catch", "high-biased", "low-biased", "low-catch"), 
                                              labels = c("high-catch", "high-biased", "low-biased", "low-catch"))
 
@@ -511,6 +511,6 @@ p.wm.coged.fmri.RT <- ggplot(wm.coged.fmri.RT.sum, aes(x=trialType, y=choiceRT, 
   geom_errorbar(position=position_dodge(width=0.9), aes(ymin=choiceRT-ci, ymax=choiceRT+ci), width=.2, size=1.1) +  
   xlab("Trial Type") + ylab("RT (seconds)") + ggtitle("WM Cog-ED Choice RT")+ 
   scale_fill_brewer(palette = "Paired:2",  name="Bias Type", labels=c("Anti","Pro"))+
-  facet_grid(Group.Assignment ~ Age.Group)
+  facet_grid(MDD_Status ~ Age.Group)
 p.wm.coged.fmri.RT
 ```
