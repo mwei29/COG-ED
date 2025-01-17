@@ -12,211 +12,112 @@ output:
 ---
 # MARCER_CogEd_data
 ## Behavioral Session
-### There are 142(s) participants included in these analyses
+#### There are 142 participants that have scan session data. 134 participants have COGED data, thus included in these analyses.
 #### N.b. all error bars in this summary are 95% CIs
-Adapted from JC's code. Started again by MW in 12/10/24 to analyze MARCER full dataset.
+Started by MW in 12/10/24 to analyze MARCER COGED full behavioral data. I have updated a lot of code compared to the original version to make it cleaner.
 
 ```{r setup, warning=FALSE, message=FALSE}
 rm(list=ls());
-library(boxr);   
-box_auth(); 
-wustl.box <- TRUE;
 #Packages
-library(lme4); library(knitr); library(kableExtra); library(correlation); library(RColorBrewer); library(tidyverse);library(boxr);library(readxl)
+library(boxr); library(lme4); library(knitr); library(kableExtra); library(correlation); library(RColorBrewer); library(tidyverse);library(boxr);library(readxl);library(psych)
 source("summarySEwithin2.R")
+box_auth(); 
 
-# as of 7 April 2023, these sub.ids have coged-MARCER-PID-converted.csv in box preprocessed_data
-# Specify Box folder ID where files are stored
-# folder_id <- '148056179835'
-# List of participant IDs
 in.path <- "C:/Users/Emotion/Documents/GIT-MW/COG-ED/Prep/SubjectSet/" 
 out.path <-"C:/Users/Emotion/Documents/GIT-MW/COG-ED/Analysis and Knitr/COGED behavioral/" 
 dir.desc <- "20250114";  
 sub.tbl <- read.table(paste0(in.path, dir.desc, "_subjectSet.txt"), stringsAsFactors=FALSE);
 sub.ids <- sub.tbl$sub.id[which(sub.tbl$COGED_CatchNonCatch == TRUE)]
+length(sub.ids) # Number of participants included in this analysis
+ 
+# # Load demographic
+# demo.tbl <- read_excel(paste0(in.path,"data_per_participant.xlsx"))
+# eth.tbl <- read_excel(paste0(in.path,"ethnicity.xlsx"))
+# demo.tbl <- demo.tbl[demo.tbl$sub.id %in% sub.ids,] # filter only participant with scan data
+# demo$sub.id<-as.integer(demo$sub.id)
+# eth.tbl$PID<-as.integer(eth.tbl$PID)
+# demo <- demo %>%
+#   left_join(eth.tbl %>% select(PID, Ethnicity), by = c("sub.id" = "PID"))
+# write.csv(demo, "demo.csv", row.names = FALSE)
 
-#Load demographic
-demo.tbl <- read_excel(paste0(in.path,"data_per_participant.xlsx"))
-#filter only participant with scan data
-demo <- demo.tbl[demo.tbl$sub.id %in% sub.ids,]
+# # Run the following code if the data sets are not compiled yet
+# # Load COGED and nback data from box, preprocessed folder 
+# tasks <- c("coged.lab","coged.fmri","NASA","nback.lab","nback.fmri")
+# task.names <- c("coged-MARCER-","coged-MARCER-fMRI-","followupredcap-MARCER-","nback-MARCER-","scan-nback-MARCER-")
+# for (tid in 4:length(tasks)) {
+#   assign(tasks[tid], data.frame())
+#   print(paste0("Processing task:", tasks[tid]))
+#   for (sid in 1:length(sub.ids)) { 
+#     print(paste0("Processing sub.id:", sub.ids[sid]))
+#     fname <- paste0(task.names[tid],sub.ids[sid], "-converted.csv")
+#     fid <- box_search(fname)
+#     if (is.null(fid)) {
+#       print(paste("File not found for sub.id:", sub.ids[sid], "in task:", tasks[tid]))
+#       next
+#     }
+#     tmp.tbl <- box_read(fid) %>% as.data.frame() # Read in the file and store the data as a dataframe
+#     if (tasks[tid] == "NASA") {
+#       tmp.tbl <- tmp.tbl[,1:60]
+#       tmp.tbl$hbc1 <- as.integer(tmp.tbl$hbc1)
+#       tmp.tbl$hbc2 <- as.integer(tmp.tbl$hbc2)
+#       tmp.tbl$confience2 <- as.integer(tmp.tbl$confience2)
+#     }
+#     df <- get(tasks[tid]) # Retrieve the existing data frame
+#     df <- bind_rows(df, tmp.tbl) # Append rows to the data frame
+#     assign(tasks[tid], df) # Update the data frame in the environment
+#   }
+#     write.csv(get(tasks[tid]), paste0(tasks[tid], ".csv"), row.names = FALSE)
+#   }
 
-#Load COGED follow up
-# Create an empty dataframe to store the results
-coged.lab <- data.frame()
-# Loop over participant IDs and read in the corresponding file
-for (id in fCOGED.ids) {
-# Generate the file name
-file_name <- paste0("coged-MARCER-", id, "-converted.csv")
-# Search for the file ID in the specified Box folder
-file_id <- box_search(file_name)
-# Read in the file and store the data as a dataframe
-file_data <- box_read(file_id) %>% as.data.frame()
-# Append the data to the WM.coged.path dataframe
-WM.coged.path <- bind_rows(WM.coged.path, file_data)
-}
-# View the final dataset
-View(WM.coged.path)
-write.csv(WM.coged.path, file = "WM.coged.csv", row.names = FALSE)
-
-
-##load coged in fmri
-#WM.coged.fmri.path<-data.frame()
-#for (id in fCOGED.ids) {
-  ## Generate the file name
-  #file_name <- paste0("coged-MARCER-fMRI-", id, "-converted.csv")
-  ## Search for the file ID in the specified Box folder
-  #file_id <- box_search(file_name)
-  ## Read in the file and store the data as a dataframe
-  #file_data <- box_read(file_id) %>% as.data.frame()
-  ## Append the data to the WM.coged.fmri.path dataframe
-  #WM.coged.fmri.path <- bind_rows(WM.coged.fmri.path, file_data)
-#}
-## View the final dataset
-#View(WM.coged.fmri.path)
-#write.csv(WM.coged.fmri.path, file = "WM.coged.fmri.csv", row.names = FALSE)
-
-##Load NASA rating
-#WM.NASA.path<-data.frame()
-#for (id in fCOGED.ids) {
-  ## Generate the file name
-  #file_name <- paste0("followupredcap-MARCER-", id, "-converted.csv")
-  ## Search for the file ID in the specified Box folder
-  #file_id <- box_search(file_name)
-  ## Read in the file and store the data as a dataframe
-  #file_data <- box_read(file_id) %>% as.data.frame()
-  #WM.NASA.path$hbc1<-as.integer(WM.NASA.path$hbc1)
-  #WM.NASA.path$confience2<-as.integer(WM.NASA.path$confience2)
-  ## Append the data to the WM.NASA.path dataframe
-  #WM.NASA.path <- bind_rows(WM.NASA.path, file_data)
-#}
-
-## View the final dataset
-#View(WM.NASA.path)
-#write.csv(WM.NASA.path, file = "WM.NASA.csv", row.names = FALSE)
-
-##Load nback in follow up
-#NBack.lab.path<-data.frame()
-#for (id in fCOGED.ids) {
-  ## Generate the file name
-  #file_name <- paste0("nback-MARCER-", id, "-converted.csv")
-  ## Search for the file ID in the specified Box folder
-  #file_id <- box_search(file_name)
-  ## Read in the file and store the data as a dataframe
-  #file_data <- box_read(file_id) %>% as.data.frame()
-  ## Append the data to the NBack.lab.path dataframe
-  #NBack.lab.path <- bind_rows(NBack.lab.path, file_data)
-#}
-## View the final dataset
-#View(NBack.lab.path)
-#write.csv(NBack.lab.path, file = "NBack.lab.csv", row.names = FALSE)
-
-##Load nback in scanner
-#NBack.scanner.path<-data.frame()
-#for (id in fCOGED.ids) {
-#  # Generate the file name
-#  file_name <- paste0("scan-nback-MARCER-", id, "-converted.csv")
-#  # Search for the file ID in the specified Box folder
-#  file_id <- box_search(file_name)
-#  # Read in the file and store the data as a dataframe
-#  file_data <- box_read(file_id) %>% as.data.frame()
-#  # Append the data to the NBack.scanner.path dataframe
-#  NBack.scanner.path <- bind_rows(NBack.scanner.path, file_data)
-#}
-## View the final dataset
-#View(NBack.scanner.path)
-#write.csv(NBack.scanner.path, file = "NBack.scanner.csv", row.names = FALSE)
-
-#Get the age variable from Master Spread Sheet
-#master <- read.csv("MARCER Master Spreadsheet.csv")
-#view(master)
-#demo <- left_join(demo, master %>% 
-#                       select(Age, PID), 
-#                       by = c("Participant.ID" = "PID"))
-#write.csv(demo, file = "demo.csv", row.names = FALSE)
-
-#####Only run these if pid hasn't changed yet#####
-#online sample for normative comparisons
-coged.online.path <- "https://raw.githubusercontent.com/jlcrawford/OA_CogED_online/master/Data/gain_loss_coged_SHARE.csv"
-demo <- read.csv("demo.csv") 
-WM.coged<- read.csv("WM.coged.csv")
-WM.coged.fmri<- read.csv("WM.coged.fmri.csv")
-WM.NASA <- read.csv("WM.NASA.csv")
-nback.lab <- read.csv("NBack.lab.csv")
-nback.fmri <- read.csv("NBack.scanner.csv")
-coged.online <- read.csv(coged.online.path, header = T) %>% filter(completed ==1)
+demo <- read.csv("demo.csv")
+coged.lab<- read.csv("coged.lab.csv")
+coged.fmri<- read.csv("coged.fmri.csv")
+NASA <- read.csv("NASA.csv")
+nback.lab <- read.csv("nback.lab.csv")
+nback.fmri <- read.csv("nback.fmri.csv")
 ```
 
 ## Demographic Info
 
 ```{r Demo, warning=FALSE, message=FALSE}
 #Age
-demo.sum <- demo %>% select(Participant.ID, Group.Assignment, Age.Bin, Race, Ethnicity, Gender, Age) %>%
-  mutate(Age.Group = ifelse(Age.Bin %in% c("35-44 years", "45-54 years"), "MA", "OA"))
-demo.age.sum <- demo.sum %>%
-  group_by(Age.Group) %>%
-  summarise(total_count=n()) %>%
-  as.data.frame()
-demo.age.sum
-
-#Specific age; we do have 1 participant with missing age data due to early termination of the participation, but the age bin is still there so I decided to include it anyway
-demo.age.sum2 <- demo %>%
-  select(Age) %>%
-  summarise(mean.age = mean(Age, na.rm=TRUE), range.age = range(Age, na.rm=TRUE), sd.age = sd(Age, na.rm=TRUE))
-demo.age.sum2
-
-#Age Group by Bins
-demo.age.sum3 <- demo.sum %>%
-  group_by(Age.Bin) %>%
-  summarise(total_count=n()) %>%
-  as.data.frame()
-demo.age.sum3
+demo %>%
+  group_by(`Age Group`) %>%
+  summarise(total_count=n()) 
+demo %>%
+  group_by(`Age Group`,`Age Bin`) %>%
+  summarise(total_count=n()) 
+describe(demo$Age)
 
 #Gender
-demo.gender.sum <- demo.sum %>% select(Participant.ID, Gender) %>%
+demo %>% select(Gender) %>%
   count(Gender)
-demo.gender.sum
 
 #MDD status
-demo.mdd.sum <- demo.sum %>% select(Participant.ID, Group.Assignment) %>%
-  count(Group.Assignment)
-demo.mdd.sum
+demo %>% select(MDD_Status) %>%
+  count(MDD_Status)
 
-#Overall
-demo.overall1 <- demo.sum %>% 
-  group_by(Group.Assignment,Gender) %>%
-  summarise(total_count=n()) %>%
-  as.data.frame()
-demo.overall1
-
-demo.overall2 <- demo.sum %>% 
-  group_by(Age.Group,Group.Assignment) %>%
-  summarise(total_count=n()) %>%
-  as.data.frame()
-demo.overall2
-
-demo.overall3 <- demo.sum %>% 
-  group_by(Age.Bin,Group.Assignment) %>%
-  summarise(total_count=n()) %>%
-  as.data.frame()
-demo.overall3
+demo %>% 
+  group_by(`Age Group`,MDD_Status,Gender) %>%
+  summarise(total_count=n()) 
 
 #Race
-demo.race.sum <- demo.sum %>% select(Participant.ID, Race) %>%
+demo %>% select(Race) %>%
   count(Race)
-demo.race.sum
+demo %>% 
+  group_by(`Age Group`,MDD_Status,Race) %>%
+  summarise(total_count=n()) 
 
-#Ethnicity
-demo.eth.sum <- demo.sum %>% select(Participant.ID, Ethnicity) %>%
+demo %>% select(Ethnicity) %>%
   count(Ethnicity)
-demo.eth.sum
 ```
 
 ### N-Back Performance
 
 ```{r nback, warning=F, message=F}
 #Summarizing n-back performance
-nback.clean <- left_join(nback.lab, demo.sum %>% 
-                       select(Participant.ID, Group.Assignment, Age.Group), 
+nback.lab <- left_join(nback.lab, demo %>% 
+                       select(sub.id, Group.Assignment, Age.Group), 
                        by = c("subID" = "Participant.ID")) %>% 
   select(subID, level, kind, acc, RT, Group.Assignment, Age.Group) %>% 
   mutate(level = factor(level, levels = c(1,2,3,4), labels = c("Black","Red","Blue","Purple")),
