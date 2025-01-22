@@ -2,7 +2,6 @@
 title: "Cog-ED MARCER Behavioral Results"
 author: "Mengzhe Wei"
 date: "`r Sys.Date()`"
-date: "`r Sys.Date()`"
 output:
   html_document:
     theme: journal
@@ -94,6 +93,9 @@ demo %>% select(Gender) %>%
 #MDD status
 demo %>% select(MDD_Status) %>%
   count(MDD_Status)
+demo %>% 
+  group_by(Age.Group,MDD_Status) %>%
+  summarise(total_count=n()) 
 demo %>% 
   group_by(Age.Group,MDD_Status,Gender) %>%
   summarise(total_count=n()) 
@@ -380,7 +382,7 @@ p.frust
 ```
 
 ## fMRI Session
-### N-Back Performance
+### N-Back Performance in scanner
 
 ```{r nback_fmri, warning=F, message=F}
 #summarizing n-back task performance in the scanner
@@ -400,40 +402,38 @@ nback.fmri.clean$ageCode <- as.numeric(as.character(nback.fmri.clean$ageCode))
 nback.fmri.clean$groupCode <- as.numeric(as.character(nback.fmri.clean$groupCode))
 
 #nback accuracy decreases as the task becomes harder, age negatively impacts nback accuracy too
-nback.acc.fmri <- glmer(data = nback.fmri.clean, acc ~ taskCode + (1|subID), family = "binomial")
-summary(nback.acc.fmri)
-nback.acc.fmri.group <- glmer(data = nback.fmri.clean, acc ~ taskCode + ageCode + groupCode + (1|subID), family = "binomial")
-summary(nback.acc.fmri.group)
+nback.fmri.acc <- glmer(data = nback.fmri.clean, acc ~ taskCode + (1|subID), family = "binomial")
+summary(nback.fmri.acc)
+nback.fmri.acc.group <- glmer(data = nback.fmri.clean, acc ~ taskCode + ageCode + groupCode + (1|subID), family = "binomial")
+summary(nback.fmri.acc.group)
 
-
-#START HERE
 #Accuracy
-nback.fmri.acc <- summarySEwithin2(nback.fmri.clean, measurevar = "acc", withinvars = c("level","kind","MDD_Status","Age.Group"), idvar = "subID") %>%
+nback.fmri.acc.sum <- summarySEwithin2(nback.fmri.clean, measurevar = "acc", withinvars = c("level","kind","MDD_Status","Age.Group"), idvar = "subID") %>%
           mutate(kind = factor(kind, levels = c(0,1), labels = c("non-target","target"))) %>%
   rename("trial_type" = kind) %>% select(c(level, trial_type, acc, sd, se, ci, MDD_Status,Age.Group)) %>% arrange(level)
-kable(nback.fmri.acc, digits = 3) %>% kable_styling()
+kable(nback.fmri.acc.sum, digits = 3) %>% kable_styling()
 
-p.nback.fmri.acc <- ggplot(nback.fmri.acc, aes(x=level, y=acc, fill=trial_type)) + 
+p.nback.fmri.acc <- ggplot(nback.fmri.acc.sum, aes(x=level, y=acc, fill=trial_type)) + 
   theme(plot.title = element_text(hjust = 0.5), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) +
   geom_bar(stat="identity", position=position_dodge(), alpha=.45, size=1.1) +
   geom_errorbar(position=position_dodge(width=0.9), aes(ymin=acc-ci, ymax=acc+ci), width=.2, size=1.1) +  
   xlab("N-Back Level") + ylab("Accuracy") + ggtitle("N-Back fMRI Performance (Accuracy)") + 
   scale_fill_brewer(palette = "Paired",  name="Trial Type", labels=c("Non-Target","Target"))+
   facet_grid(MDD_Status ~ Age.Group)
-nback.fmri.acc
+p.nback.fmri.acc
 
-#RT
-m.nback.RT.fmri <- lmer(data = nback.fmri.clean, RT ~ taskCode + (1|subID))
-summary(m.nback.RT.fmri)
-m.nback.RT.fmri2 <- lmer(data = nback.fmri.clean, RT ~ taskCode + ageCode + groupCode + (1|subID))
-summary(m.nback.RT.fmri2)
+#RT; RT increases as task gets harder & age increases
+nback.fmri.RT <- lmer(data = nback.fmri.clean, RT ~ taskCode + (1|subID))
+summary(nback.fmri.RT)
+nback.fmri.RT.group <- lmer(data = nback.fmri.clean, RT ~ taskCode + ageCode + groupCode + (1|subID))
+summary(nback.fmri.RT.group)
 
-nback.fmri.RT <- summarySEwithin2(nback.fmri.clean, measurevar = "RT", withinvars = c("level","kind","MDD_Status","Age.Group"), idvar = "subID") %>%
+nback.fmri.RT.sum <- summarySEwithin2(nback.fmri.clean, measurevar = "RT", withinvars = c("level","kind","MDD_Status","Age.Group"), idvar = "subID") %>%
           mutate(kind = factor(kind, levels = c(0,1), labels = c("non-target","target"))) %>%
   rename("trial_type" = kind) %>% select(c(level, trial_type, RT, sd, se, ci, MDD_Status,Age.Group)) %>% arrange(level)
-kable(nback.fmri.RT, digits = 3) %>% kable_styling()
+kable(nback.fmri.RT.sum, digits = 3) %>% kable_styling()
 
-p.nback.fmri.RT <- ggplot(nback.fmri.RT, aes(x=level, y=RT, fill=trial_type)) + 
+p.nback.fmri.RT <- ggplot(nback.fmri.RT.sum, aes(x=level, y=RT, fill=trial_type)) + 
   theme(plot.title = element_text(hjust = 0.5), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) +
   geom_bar(stat="identity", position=position_dodge(), alpha=.45, size=1.1) +
   geom_errorbar(position=position_dodge(width=0.9), aes(ymin=RT-ci, ymax=RT+ci), width=.2, size=1.1) +  
@@ -445,12 +445,13 @@ p.nback.fmri.RT
 nback.fmri.performance <- nback.fmri.clean %>% group_by(subID, level) %>%
   summarise(hitRate = (sum(hit)/16), FARate = sum(FA)/48, mRT = mean(RT)) %>%
   rename(task = "level")
+nback.fmri.performance
 ```
 
-## Cog-ED Choices
+## Cog-ED Choices in scanner
 
 ```{r WM_coged_fmri, warning=FALSE, message=FALSE}
-wm.coged.fmri.clean <- WM.coged.fmri %>% filter(trial > 45) %>% filter(choice != 9) %>%
+coged.fmri.clean <- coged.fmri %>% filter(trial > 45) %>% filter(choice != 9) %>%
   select(-c(adjAmount, adjEff, taskAmount, ISI, valDuration, choiceDuration, maxRT)) %>%
   mutate(proxType = if_else(abs(proximityValue) == 1, "catch", "biased"),
          biasType = if_else(proximityValue >0, "low", "high"),
@@ -459,55 +460,48 @@ wm.coged.fmri.clean <- WM.coged.fmri %>% filter(trial > 45) %>% filter(choice !=
                              if_else((proxType == "biased" & biasType == "high"), "high-biased", "low-biased")))),
          choseHard = if_else((choice == 1), 0, 1),
          bias = if_else((biasType == "high" & choseHard == 1 | biasType == "low" & choseHard == 0), "pro", "anti"))%>%
-  left_join(demo.sum %>% select(Participant.ID, MDD_Status, Age.Bin, Age.Group, Age), 
-            by = c("subID" = "Participant.ID")) 
+  left_join(demo %>% select(sub.id, MDD_Status, Age.Group, Age), 
+            by = c("subID" = "sub.id")) 
 
-#The breakdown for those who have fmri coged data
-fmri.age.sum <- wm.coged.fmri.clean %>%
-  distinct(subID, .keep_all = TRUE) %>%
-  group_by(Age.Group, MDD_Status) %>%
-  summarise(total_count=n()) %>%
-  as.data.frame()
-fmri.age.sum
-
- wm.coged.fmri.hardChoice <- wm.coged.fmri.clean %>% select(subID, trialType, choseHard, MDD_Status,Age.Group) %>% group_by(subID, trialType, MDD_Status,Age.Group) %>%
-   summarise(n_choice = n(), n_hardChoice = sum(choseHard)) %>%
-   mutate(propHard = n_hardChoice/n_choice)
+coged.fmri.hardChoice <- coged.fmri.clean %>% select(subID, trialType, choseHard, MDD_Status,Age.Group) %>% 
+  group_by(subID, trialType, MDD_Status,Age.Group) %>%
+  summarise(n_choice = n(), n_hardChoice = sum(choseHard)) %>%
+  mutate(propHard = n_hardChoice/n_choice)
  
-wm.coged.fmri.hardChoice.subj <- wm.coged.fmri.clean %>% select(subID, trialType, choseHard) %>% group_by(subID) %>%
+coged.fmri.hardChoice.subj <- coged.fmri.clean %>% select(subID, trialType, choseHard) %>% group_by(subID) %>%
    summarise(n_choice = n(), n_hardChoice = sum(choseHard)) %>%
    mutate(propHard = n_hardChoice/n_choice)
 
-wm.coged.fmri.hardChoice.subj.sum <- wm.coged.fmri.hardChoice.subj %>%
+coged.fmri.hardChoice.subj.sum <- coged.fmri.hardChoice.subj %>%
   summarise(meanPropHard = mean(propHard), sdPropHard = sd(propHard))
  
-wm.coged.prophard.sum <- summarySEwithin2(data = wm.coged.fmri.hardChoice, measurevar = "propHard", withinvars = c("trialType","MDD_Status","Age.Group"), idvar = "subID")
-wm.coged.prophard.sum$trialType <- factor(wm.coged.prophard.sum$trialType, levels = c("high-catch", "high-biased", "low-biased", "low-catch"), 
+coged.prophard.sum <- summarySEwithin2(data = coged.fmri.hardChoice, measurevar = "propHard", withinvars = c("trialType","MDD_Status","Age.Group"), idvar = "subID")
+coged.prophard.sum$trialType <- factor(coged.prophard.sum$trialType, levels = c("high-catch", "high-biased", "low-biased", "low-catch"), 
                                              labels = c("high-catch", "high-biased", "low-biased", "low-catch"))
 
 #plotting Cog-ED choices from scanner
-p.wm.coged.hardChoice <- ggplot(wm.coged.prophard.sum, aes(x=trialType, y=propHard)) + 
+p.coged.hardChoice <- ggplot(coged.prophard.sum, aes(x=trialType, y=propHard)) + 
   theme(plot.title = element_text(hjust = 0.5), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) +
   geom_bar(stat="identity", position=position_dodge(), alpha=.45, size=1.1) +
   geom_errorbar(position=position_dodge(width=0.9), aes(ymin=propHard-ci, ymax=propHard+ci), width=.2, size=1.1) + 
     coord_cartesian(ylim=c(0,1.05)) +
   xlab("Trial Type") + ylab("Proportion Hard Choice") + ggtitle("WM Cog-ED Choice Behavior")+
   facet_grid(MDD_Status ~ Age.Group)
-p.wm.coged.hardChoice
+p.coged.hardChoice
 
 #summarizing RT from Cog-ED choices
-wm.coged.fmri.RT.sum <- summarySEwithin2(data = wm.coged.fmri.clean, measurevar = "choiceRT", withinvars = c("trialType","bias","MDD_Status","Age.Group"), idvar = "subID")
-wm.coged.fmri.RT.sum$trialType <- factor(wm.coged.fmri.RT.sum$trialType, levels = c("high-catch", "high-biased", "low-biased", "low-catch"), 
+coged.fmri.RT.sum <- summarySEwithin2(data = coged.fmri.clean, measurevar = "choiceRT", withinvars = c("trialType","bias","MDD_Status","Age.Group"), idvar = "subID")
+coged.fmri.RT.sum$trialType <- factor(coged.fmri.RT.sum$trialType, levels = c("high-catch", "high-biased", "low-biased", "low-catch"), 
                                              labels = c("high-catch", "high-biased", "low-biased", "low-catch"))
 
 
 #plotting Cog-ED choice RT from scanner
-p.wm.coged.fmri.RT <- ggplot(wm.coged.fmri.RT.sum, aes(x=trialType, y=choiceRT, fill=bias)) + 
+p.coged.fmri.RT <- ggplot(coged.fmri.RT.sum, aes(x=trialType, y=choiceRT, fill=bias)) + 
   theme(plot.title = element_text(hjust = 0.5), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) +
   geom_bar(stat="identity", position=position_dodge(), alpha=.45, size=1.1) +
   geom_errorbar(position=position_dodge(width=0.9), aes(ymin=choiceRT-ci, ymax=choiceRT+ci), width=.2, size=1.1) +  
   xlab("Trial Type") + ylab("RT (seconds)") + ggtitle("WM Cog-ED Choice RT")+ 
   scale_fill_brewer(palette = "Paired:2",  name="Bias Type", labels=c("Anti","Pro"))+
   facet_grid(MDD_Status ~ Age.Group)
-p.wm.coged.fmri.RT
+p.coged.fmri.RT
 ```
