@@ -23,11 +23,14 @@ EVTS.path <- "/data/MARCER/participantData/";
 in.path <- "/scratch2/weie/COGED_CODE/np2_trial/sphere_analysis/sphere_data/"
 out.path <- "/scratch2/weie/COGED_CODE/np2_trial/sphere_analysis/sphere_table/"
 trial.out.path <- "/scratch2/weie/COGED_CODE/np2_trial/sphere_analysis/sphere_trialwise/"
+pp.path<-"/data/MARCER/participantData/fMRIPrep_PREPROCESSED/"
 atlas.path <- "/data/MARCER/ATLASES/";  
 afni.path <- "/usr/local/pkg/afni_22/";   # path to the afni function executables
 dir.desc <- "20250114";  
 sub.tbl <- read.table(paste0("/scratch2/weie/COGED_CODE/SubjectSet/", dir.desc, "_subjectSet.txt"), stringsAsFactors=FALSE);
 sub.ids <- sub.tbl$sub.id[which(sub.tbl$COGED_CatchNonCatch == TRUE)]
+p.name <- c("VS_left", "VS_right", "vmPFC_right_Bartra", "AI_left", "AI_right", "PCC", "Brainstem", "ACC", "dACC", "SupGyr_right", "Cingulate_left", "ITG_left", "IFG_left", "IPL_left_1", "IPL_left_2", "TempPole_right", "vmPFC_right_LG", "vmPFC_left_LG", "Amygdala_right_1", "Amygdala_left", "IPS_left", "dmPFC", "IPS_right", "AI_right_Chong", "dlPFC_left", "dlPFC_right", "Insula_left", "Amygdala_right_2")
+parcels <- 265:292
 
 TR <- 1;  # in seconds, for x-axis timecourse scaling
 task.id <- "COGED";    
@@ -155,7 +158,6 @@ for (pid in 265:292) { #pid <- 265; seems like I need to restart at pid 233
         close(fin); unlink(fin);
         if (length(tmp) != length(run.ids)) { stop("not expected evt file"); }
         evt.lst <- vector("list", length(run.ids));
-        # for (i in 1:length(run.ids)) { evt.lst[[i]] <- as.numeric(strsplit(tmp[i], " ")[[1]]); }
         evt.lst[[rid]] <- as.numeric(strsplit(tmp[rid], " ")[[1]]);
         if (is.na(evt.lst[[rid]])) {
           message("EVTs run:", run.ids[rid], " does not exist for subject", sub.ids[sid])
@@ -199,8 +201,6 @@ layout(matrix(1:6, 1:6));
 par(mar=c(2, 1, 1.5, 0.5), mgp=c(1.1, 0.2, 0), tcl=-0.3);
 n.TRs <- 25;
 colors<-c('cyan','dodgerblue','darkblue')
-p.name <- c("VS_left", "VS_right", "vmPFC_right_Bartra", "AI_left", "AI_right", "PCC", "Brainstem", "ACC", "dACC", "SupGyr_right", "Cingulate_left", "ITG_left", "IFG_left", "IPL_left_1", "IPL_left_2", "TempPole_right", "vmPFC_right_LG", "vmPFC_left_LG", "Amygdala_right_1", "Amygdala_left", "IPS_left", "dmPFC", "IPS_right", "AI_right_Chong", "dlPFC_left", "dlPFC_right", "Insula_left", "Amygdala_right_2")
-parcels <- 265:292
 # mar: c(bottom, left, top, right) gives the number of lines of margin on the four sides of the plot. Default is c(5, 4, 4, 2) + 0
 ##### New attempt to read in intermediate file
 for (pid in 1:length(parcels)) { #pid<-1
@@ -229,6 +229,87 @@ for (pid in 1:length(parcels)) { #pid<-1
   #   }
   # }
 }
+@
+
+<<code2trialwise, eval=FALSE, echo=FALSE, cache=TRUE>>=
+#Calculate the trial-wise activity for evaluation phase and decision making phase
+for (sid in 1:length(sub.ids)) { # sid<-9
+  # Add empty evaluation & decision mean table for each participant
+  eval.means <- array(NA, c(36*length(run.ids), 28))
+  dm.means <- array(NA,c(36*length(run.ids), 28))
+  # Reading in EVTs file
+  evt.fname <- paste0(EVTS.path, "EVTS/", sub.ids[sid], "/", sub.ids[sid], "_COGED_EV_valuation.txt");
+  if (!file.exists(evt.fname)) {
+    message("EVTs file does not exisit for subject", sub.ids[sid])
+    stop()
+  } else {
+    fin <- file(evt.fname, 'rt')
+    tmp <- readLines(fin);
+    close(fin); unlink(fin);
+    if (length(tmp) != length(run.ids)) { stop("not expected evt file"); }
+    evt.lst <- vector("list", length(run.ids));
+    np.lst <- vector("list", length(run.ids));
+    # Reading in np2 files
+    for (rid in 1:length(run.ids)) { #rid <-1
+      evt.lst[[rid]] <- as.numeric(strsplit(tmp[rid], " ")[[1]]);
+      np.fname <- paste0(in.path, "sub-", sub.ids[sid], 
+                         "_ses-1_task-COGED_run", run.ids[rid], "_np", which.polort, "_sphere.txt");
+      if (!file.exists(np.fname)) {
+        message("np2 file does not exist for subject", sub.ids[sid])
+        stop()
+      } else {
+        np.tbl <- read.delim(np.fname);
+        if (ncol(np.tbl) != 30) { stop("ncol(np.tbl) != 30"); }  # volume "timecourses" files have parcel numbers for the columns
+        np.lst[[rid]] <- np.tbl;
+      }
+    }
+    
+    for (rid in 1:length(run.ids)) { #rid<-3
+      # make censor.TRs. start by reading desc-confounds_timeseries.tsv$framewise_displacement
+      # code from template_fMRIQC.rnw
+      fname <- paste0(pp.path, sub.ids[sid], "/derivatives/fmriprep/sub-", sub.ids[sid], "/ses-1/func/sub-", sub.ids[sid],
+                      "_ses-1_task-COGED_run-", run.ids[rid],  "_desc-confounds_timeseries.tsv");
+      if (file.exists(fname)) {
+        in.tbl <- read.delim(fname, na.strings="n/a");
+        censor.TRs <- which(in.tbl$framewise_displacement > 0.9);  # > not >=
+        np.tbl <- np.lst[[rid]]
+        evt.vec <- evt.lst[[rid]];
+        if (all(is.na(evt.vec))) {
+          message("EVTs run:", run.ids[rid], " does not exist for subject", sub.ids[sid])
+          next
+        } else {
+          tmp.tbl <- array(NA, c(length(evt.vec), n.TRs));
+          for (pid in 1:length(parcels)) { #pid<-1
+            for (i in 1:length(evt.vec)) { # i<-8
+              tmp.tbl[i,] <- np.tbl[evt.vec[i]:((evt.vec[i])+n.TRs-1), paste0("Mean_", parcels[pid])]; 
+              censor.TRs.run <- censor.TRs[censor.TRs >=(i-1)*25+1 & censor.TRs <=i*25]
+              censor.TRs.run <- censor.TRs.run - (i-1)*25
+              TRs.to.avg <- start.TR.eval:stop.TR.eval;  # all of 'em
+              TRs.to.avg[which(TRs.to.avg %in% censor.TRs.run)] <- NA;  # censor.TRs made from which desc-confounds_timeseries.tsv framewise_displacement rows > 0.9
+              if (length(which(is.na(TRs.to.avg))) <= 1) {   # may not need this if: with na.rm=TRUE I think the mean
+                # will automatically be NA if all the TRs are NA. May not want to include the trial if too many frames are censored.
+                eval.means[i+(rid-1)*36,pid] <- mean(tmp.tbl[i,TRs.to.avg], na.rm=TRUE)
+              } else {
+                eval.means[i+(rid-1)*36,pid] <- NA;
+              }
+              TRs.to.avg <- start.TR.dm:stop.TR.dm;  # all of 'em
+              TRs.to.avg[which(TRs.to.avg %in% censor.TRs)] <- NA;  # censor.TRs made from which desc-confounds_timeseries.tsv
+              if (length(which(is.na(TRs.to.avg))) <= 1) {   # may not need this if: with na.rm=TRUE I think the mean
+                # will automatically be NA if all the TRs are NA. May not want to include the trial if too many frames are censored.
+                dm.means[i+(rid-1)*36,pid] <- mean(tmp.tbl[i,TRs.to.avg], na.rm=TRUE)
+              } else {
+                eval.means[i+(rid-1)*36,pid] <- NA;
+              }
+              dm.means[i+(rid-1)*36,pid] <- mean(tmp.tbl[i,(start.TR.dm:stop.TR.dm)])
+            }
+          }
+        }
+      }
+    }
+    write.table(eval.means,file = paste0(trial.out.path, "COGED_np2_trialwise_sphere_eval_sub", sub.ids[sid], ".txt"), sep = "\t", row.names = FALSE, col.names = FALSE)
+    write.table(dm.means,file = paste0(trial.out.path, "COGED_np2_trialwise_sphere_dm_sub", sub.ids[sid], ".txt"), sep = "\t", row.names = FALSE, col.names = FALSE)
+  }
+  }
 @
 
 <<code1OG, eval=FALSE, cache=FALSE, echo=FALSE, fig.height=2, fig.width=7, fig.align='center'>>=     
@@ -278,73 +359,5 @@ for (pid in 1:400) { # pid <- 1;
 box();
 }
 @
-
-<<code2trialwise, eval=FALSE, echo=FALSE, cache=TRUE>>=
-#Calculate the trial-wise activity for evaluation phase and decision making phase
-for (sid in 1:length(sub.ids)) { # sid<-1
-  # Add empty evaluation & decision mean table for each participant
-  eval.means <- array(NA, c(36*length(run.ids), 400))
-  dm.means <- array(NA,c(36*length(run.ids), 400))
-  # Reading in EVTs file
-  evt.fname <- paste0(in.path, "EVTS/", sub.ids[sid], "/", sub.ids[sid], "_COGED_EV_valuation.txt");
-  if (!file.exists(evt.fname)) {
-    message("EVTs file does not exisit for subject", sub.ids[sid])
-    stop()
-  } else {
-    fin <- file(evt.fname, 'rt')
-    tmp <- readLines(fin);
-    close(fin); unlink(fin);
-    if (length(tmp) != length(run.ids)) { stop("not expected evt file"); }
-    evt.lst <- vector("list", length(run.ids));
-    np.lst <- vector("list", length(run.ids));
-    # Reading in np2 riles
-    for (rid in 1:length(run.ids)) { #rid <-1
-      evt.lst[[rid]] <- as.numeric(strsplit(tmp[rid], " ")[[1]]);
-      np.fname <- paste0(in.path, "AFNI_ANALYSIS/", sub.ids[sid], "/INPUT_DATA_NP2/sub-", sub.ids[sid],
-                         "_ses-1_task-COGED_run", run.ids[rid], "_np", which.polort, ".txt");
-      if (!file.exists(np.fname)) {
-        message("np2 file does not exist for subject", sub.ids[sid])
-        stop()
-      } else {
-        np.tbl <- read.delim(np.fname);
-        if (ncol(np.tbl) != 402) { stop("ncol(np.tbl) != 402"); }  # volume "timecourses" files have parcel numbers for the columns
-        np.lst[[rid]] <- np.tbl;
-      }
-    }
-    # make censor.TRs. start by reading desc-confounds_timeseries.tsv$framewise_displacement
-    # code from template_fMRIQC.rnw
-  #     fname <- paste0(pp.path, sub.id, "/derivatives/fmriprep/sub-", sub.id, "/ses-1/func/sub-", sub.id, 
-  #                     "_ses-1_", run.ids[rid],  "_desc-confounds_timeseries.tsv");
-  # if (file.exists(fname)) {
-  #   in.tbl <- read.delim(fname, na.strings="n/a");
-    censor.TRs <- which(in.tbl$framewise_displacement > 0.9);  # > not >=
-    
-    
-    for (rid in 1:length(run.ids)) { #rid<-2
-      np.tbl <- np.lst[[rid]]
-      evt.vec <- evt.lst[[rid]];
-      tmp.tbl <- array(NA, c(length(evt.vec), n.TRs));
-      for (pid in 1:400) { #pid<-1
-        for (i in 1:length(evt.vec)) { # i<-2
-          tmp.tbl[i,] <- np.tbl[evt.vec[i]:((evt.vec[i])+n.TRs-1), paste0("Mean_", pid)]; 
-          
-          TRs.to.avg <- start.TR.eval:stop.TR.eval;  # all of 'em
-          TRs.to.avg[which(TRs.to.avg %in% censor.TRs)] <- NA;  # censor.TRs made from which desc-confounds_timeseries.tsv framewise_displacement rows > 0.9
-          if (length(which(is.na(TRs.to.avg))) <= 5) {   # may not need this if: with na.rm=TRUE I think the mean
-            # will automatically be NA if all the TRs are NA. May not want to include the trial if too many frames are censored.
-            eval.means[i+(rid-1)*36,pid] <- mean(tmp.tbl[i,TRs.to.avg], na.rm=TRUE)
-          } else {
-            eval.means[i+(rid-1)*36,pid] <- NA;
-          }
-          dm.means[i+(rid-1)*36,pid] <- mean(tmp.tbl[i,(start.TR.dm:stop.TR.dm)])
-        }
-      }
-    }
-  }
-  write.table(eval.means,file = paste0(trial.out.path, "COGED_np2_trialwise_eval_sub", sub.ids[sid], ".txt"), sep = "\t", row.names = FALSE, col.names = FALSE)
-  write.table(dm.means,file = paste0(trial.out.path, "COGED_np2_trialwise_dm_sub", sub.ids[sid], ".txt"), sep = "\t", row.names = FALSE, col.names = FALSE)
-}
-@
-
 
 \end{document}
