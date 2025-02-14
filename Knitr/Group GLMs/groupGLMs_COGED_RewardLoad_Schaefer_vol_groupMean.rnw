@@ -1,0 +1,240 @@
+\documentclass{article}
+\addtolength{\oddsidemargin}{-1.25in}
+\addtolength{\evensidemargin}{-1.25in}
+\addtolength{\textwidth}{2.5in}
+\addtolength{\topmargin}{-.875in}
+\addtolength{\textheight}{1.75in}
+\begin{document}
+
+<<startup, echo=FALSE, message=FALSE, warning=FALSE>>=
+# MARCER COGED fMRI tasks, groupGLM results
+# started 1 April 2024 by Amanda Edgar, adapting from Jo's template_GLMs_COGED_Schaefer_vol.rmw
+# Jenny's version: "/data/nil-external/ccp/COGED_PET/knitr/GLMs_NbackCOGED/fMRIPrep-Vol-beta-NbackCOGED-400Parcel-7Networks.Rnw"
+
+# 16 Dec 2022: The number of STATS fields for the valuationSV GLM can vary: it'll be shorter if the person only had one SV.
+# see basecamp MARCER message "fMRI GLM notes", 15 December 2022. Key bit: the first part of the STATS output is for meanResp, and the second is for the
+# SV, so if someone only had one SV, afni only models the meanResp. 
+
+library(RNifti);  # volumes
+library(fields);  # for add.img function
+
+rm(list=ls());  
+options(warnPartialMatchDollar=TRUE);   # safety option
+
+##### shouldn't have to change code below here #####
+
+glm.path <- "/scratch1/aedgar/COGED_parcelStats/";  
+atlas.path <- "/data/MARCER/ATLASES/"; 
+ANOVA.path <- "/scratch2/weie/COGED_CODE/Stats/";
+
+# files and functions for brain plotting
+source("/data/nil-external/ccp/JosetAEtzel/DMCC_files/niftiPlottingFunctions.R");  # https://osf.io/k8u2c/
+#source("/data/nil-external/ccp/JosetAEtzel/DMCC_files/giftiPlottingFunctions.R");  # surface plotting functions plot.surface() and gifti.map()
+
+subcort.tbl <- read.csv(paste0(atlas.path, "subcorticalKey.csv"), stringsAsFactors=FALSE);  # subcortical_MARCER3p0.nii.gz parcel labels
+under.img <- readNifti(paste0(atlas.path, "HCP_S1200T1w_MARCER3p0.nii.gz"));      # anatomy for underlay
+sch.img <- readNifti(paste0(atlas.path, "Schaefer2018_400x7_MARCER3p0.nii.gz"));   # parcellation image
+sub.img <- readNifti(paste0(atlas.path, "subcortical_MARCER3p0.nii.gz"));
+
+fname <- "/data/MARCER/ATLASES/Schaefer2018_400Parcels_7Networks_order_info.txt";  # labels for the Schaefer parcels
+if (file.exists(fname)) {
+  fin <- file(fname, 'rt')
+  tmp <- readLines(fin);
+  close(fin); unlink(fin);
+  if (length(tmp) != 800) { stop("not expected Schaefer key."); }
+  tmp <- tmp[seq(from=1, to=800, by=2)];   # every-other entry is a label
+  sch.key <- gsub("7Networks_", "", tmp);   
+}
+
+if (!all.equal(dim(sch.img), dim(under.img))) { stop("!all.equal(dim(sch.img), dim(under.img))"); }
+if (!all.equal(dim(sub.img), dim(under.img))) { stop("!all.equal(dim(sub.img), dim(under.img))"); }
+plot.slices <- round(seq(from=20,to=52,length.out=10));     # which slices (k indices) to show in the brain plots
+
+@
+\noindent \texttt{groupGLMs\textunderscore COGED\textunderscore Schaefer\textunderscore vol.rnw} \par
+\noindent compiled \today\  \par
+\noindent \textbf{group} MARCER COGED group GLM results, volumes. \par
+\vspace{0.2 cm} 
+\section*{Subcortical Parcels}
+\noindent Masks extracted from the cifti subcortical ROIs. \par
+
+<<code1, dev='pdf', cache=FALSE, echo=FALSE, fig.height=2, fig.width=9, fig.align='center'>>=
+layout(matrix(1:5, 1:5));
+par(mar=c(1.2, 1, 1.3, 0.5), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin. Default is c(5, 4, 4, 2) + 0.1.
+
+# set various plotting parameters, rewload.lbls order.
+# [1] "EV_Low_2"    "EV_Low_3"    "EV_Low_4"    "EV_Medium_2" "EV_Medium_3" "EV_Medium_4" "EV_High_2"   "EV_High_3"   "EV_High_4"  
+clrs.rew <- rep(c("springgreen3", "orange4", "darkgreen"), 3);  # darker, for mean lines
+#clrs.rew <- rep(c("springgreen3", "darkolivegreen4", "green4"), 3);  # darker, for mean lines
+clrs.rew2 <- rep(c("springgreen2", "darkolivegreen2", "green"), 3);  # lighter, for regressor lines
+
+clrs.load <- c(rep('red',3), rep('blue',3), rep('purple',3));  # darker, for mean lines
+#clrs.load <- c(rep('orangered4',3), rep('royalblue4',3), rep('orchid4',3));  # darker, for mean lines
+clrs.load2 <- c(rep('orangered1',3), rep('royalblue1',3), rep('orchid1',3)); # lighter, for regressor lines
+
+num.knots <- 25;   # named 0:24 in afni; TENTzero. so plot knots at 1:25, with 0 appended to the front.
+
+
+
+draw.plots <- function(which.set) {   # which.set <- "sch";
+  
+  if (which.set == "subcort") { 
+    txt.lbl <- "subcortical";   # GLM "timecourses" file names
+    do.parcels <- 1:nrow(subcort.tbl);
+    p.img <- sub.img;   # parcel brain image
+    do.columns <- subcort.tbl$HCP.label;   # timecourses column names corresponding to do.parcels
+  } 
+  if (which.set == "sch") { 
+    txt.lbl <- "Schaefer2018_400x7";  
+    do.parcels <- 1:400;   # 400 since Schaefer 400
+    p.img <- sch.img;
+    do.columns <- do.parcels
+  } 
+  
+  # and the RewardLoad regressors
+  rewload.lbls <- c(paste0("EV_Low_", 2:4), paste0("EV_Medium_", 2:4), paste0("EV_High_", 2:4)); # rewload.lbls <-"EV_Low_2"
+  rewload.lst <- vector("list", length(rewload.lbls));
+  for (i in 1:length(rewload.lbls)) {      # i <- 1;
+    fname <- paste0(glm.path, "COGED_RewardLoad_", rewload.lbls[i], "_", txt.lbl, "_vol_groupMean.txt");
+    if (file.exists(fname)) {
+      in.tbl <- scan(fname, what = "", sep = " ")
+      #For subcortical
+      if (length(in.tbl) < 1000) {
+        object_names <- in.tbl[1:19]  # Extract the object names
+        num_rows <- 25
+        object_values <- as.numeric(in.tbl[20:519])
+        is_row_name <- rep(FALSE, length(object_values))
+        is_row_name[seq(1, 20 * num_rows, by = 20)] <- TRUE
+        object_values <- as.numeric(object_values[!is_row_name])
+        object_values <- matrix(object_values, nrow = num_rows, byrow = TRUE)
+      }
+      #For Schaefer
+      if (length(in.tbl) > 10000) {
+        object_names <- in.tbl[1:400]  # Extract the object names
+        num_rows <- 25
+        object_values <- as.numeric(in.tbl[401:10425])
+        is_row_name <- rep(FALSE, length(object_values))
+        is_row_name[seq(1, 400 * num_rows, by = 401)] <- TRUE
+        object_values <- as.numeric(object_values[!is_row_name])
+        object_values <- matrix(object_values, nrow = num_rows, byrow = TRUE)
+      }
+      in.tbl <- data.frame(object_values, stringsAsFactors = FALSE)
+      colnames(in.tbl) <- object_names
+      rewload.lst[[i]]  <- in.tbl; 
+    }
+  }
+  
+  #Load F stats and p value
+  f.eval <- readRDS(paste0(ANOVA.path,"anova_eval_mdd_", txt.lbl, "_vol.rds"))
+  f.dec <- readRDS(paste0(ANOVA.path,"anova_dec_mdd_", txt.lbl, "_vol.rds"))
+  
+  for (pid in do.parcels) {   #  pid <- 1;
+    
+    plot(0:1, 0:1, type="n", ann=FALSE, axes=FALSE);  # blank plot for spacing
+    
+    # add a picture of the brain
+    if (which.set == "subcort") { 
+      # inds <- which(sub.img == subcort.tbl$HCP.label[pid], arr.ind=TRUE);  # pick slice with most parcel values to plot.
+      p.ttl <- paste0(subcort.tbl$parcel.label[pid], subcort.tbl$hemisphere[pid]); 
+      p.lbl <- p.ttl; 
+    }
+    if (which.set == "sch") { 
+      # inds <- which(sch.img == pid, arr.ind=TRUE);  # pick slice with most parcel values to plot.
+      p.ttl <- sch.key[pid]; 
+      p.lbl <- paste0("p", pid); 
+    }
+    
+    inds <- which(p.img == do.columns[pid], arr.ind=TRUE);  # pick slice with most parcel values to plot.
+    ux <- unique(inds[,3]);  # find mode (http://stackoverflow.com/questions/2547402/is-there-a-built-in-function-for-finding-the-mode)
+    do.slice <- ux[which.max(tabulate(match(inds, ux)))];
+    image(under.img[,,do.slice], col=gray((0:64)/64), xlab="", ylab="", axes=FALSE, useRaster=TRUE);  # draw the underlay
+    
+    # ttl <- paste0(subcort.tbl$parcel.label[pid], " ", subcort.tbl$hemisphere[pid], " (#", subcort.tbl$HCP.label[pid], ")");
+    mtext(side=3, text=p.ttl, line=0.1, cex=0.6);
+    #text(x=-0.05, y=0.94, labels=ttl, col='white', pos=4, cex=0.8);        # title
+    text(x=-0.05, y=0.94, labels=paste0(nrow(inds), " voxels"), col='orange', pos=4); 
+    plt.data <- p.img[,,do.slice];   # get the values for the overlay
+    plt.data2 <- array(NA, dim(plt.data));  # get rid of everything else
+    plt.data2[which(plt.data == do.columns[pid])] <- 1;  # just this parcel, this slice
+    image(plt.data2, col='red', useRaster=TRUE, add=TRUE);      # draw the overlay
+    
+    
+    
+    x.lim <- c(0, num.knots);
+    y.lim <- c(-0.3,0.35);   # for all the TENT plots
+    
+    # # # # # # COGED_RewardLoad GLM: main effect of reward # # # # # # 
+    plot(x=1, y=1, col='white', xlim=x.lim, ylim=y.lim, xlab="", ylab="", main="", cex.axis=0.7, xaxs='i');
+    rect(xleft=3, xright=5, ybottom=-20, ytop=20, col='cornsilk', border=NA);
+    rect(xleft=10, xright=13, ybottom=-20, ytop=20, col='aliceblue', border=NA);
+    mtext(side=3, text=paste(p.lbl, "RewardLoad"), line=0.15, cex=0.6);
+    axis(side=2, at=c(0, -1), labels=c("0", "-1"), cex.axis=0.7);  # add in missing labels
+    lines(x=c(-10,100), y=c(0,0), col='darkgrey');
+    
+    for (vid in 2:4) {   # vid <- 2;
+      inds <- which(rewload.lbls %in% c(paste0("EV_Low_", vid), paste0("EV_Medium_", vid), paste0("EV_High_", vid)));
+      vals.tbl <- rbind(rewload.lst[[inds[1]]][,paste0("Mean_",do.columns[pid])],
+                        rewload.lst[[inds[2]]][,paste0("Mean_",do.columns[pid])],
+                        rewload.lst[[inds[3]]][,paste0("Mean_",do.columns[pid])]);
+      vals <- apply(vals.tbl, 2, mean);   # average across the three instances
+      lines(x=0:(length(vals+1)), y=c(0,vals), col=clrs.rew[inds[1]], lwd=2);   
+    }
+    #reward effect
+    if (f.eval[3,5,pid] < 0.05) {
+      text(x=x.lim[1]-0.05, y=y.lim[2]-0.6, labels=paste0("reward:F=", round(f.eval[3,4,pid], 3)), pos=4, cex=0.65);
+      text(x=x.lim[1]-0.05, y=y.lim[2]-0.65, labels=paste0("p=", round(f.eval[3,5, pid], 3)), pos=4, cex=0.65); }
+    if (f.dec[3,5,pid] < 0.05) {
+      text(x=x.lim[2]-15, y=y.lim[2]-0.6, labels=paste0("reward:F=", round(f.dec[3,4,pid], 3)), pos=4, cex=0.65);
+      text(x=x.lim[2]-15, y=y.lim[2]-0.65, labels=paste0("p=", round(f.dec[3,5, pid], 3)), pos=4, cex=0.65);}
+    
+    legend('topleft', legend=paste0("Rew", 2:4), col=clrs.rew[1:3], lwd=2, ncol=3, cex=0.7,  bty='n');
+    box();   
+    
+    
+    # # # # # # COGED_RewardLoad GLM: main effect of load # # # # # # 
+    plot(x=1, y=1, col='white', xlim=x.lim, ylim=y.lim, xlab="", ylab="", main="", cex.axis=0.7, xaxs='i');
+    rect(xleft=3, xright=5, ybottom=-20, ytop=20, col='cornsilk', border=NA);
+    rect(xleft=10, xright=13, ybottom=-20, ytop=20, col='aliceblue', border=NA);
+    axis(side=2, at=c(0, -1), labels=c("0", "-1"), cex.axis=0.7);  # add in missing labels
+    mtext(side=3, text=paste(p.lbl, "RewardLoad"), line=0.15, cex=0.6);
+    lines(x=c(-10,100), y=c(0,0), col='darkgrey');
+    
+   
+    for (vid in c("EV_Low_", "EV_Medium_", "EV_High_")) {   # vid <- "EV_Low_";
+      inds <- which(rewload.lbls %in% c(paste0(vid, 2), paste0(vid, 3), paste0(vid, 4)));
+      vals.tbl <- rbind(rewload.lst[[inds[1]]][,paste0("Mean_",do.columns[pid])],
+                        rewload.lst[[inds[2]]][,paste0("Mean_",do.columns[pid])],
+                        rewload.lst[[inds[3]]][,paste0("Mean_",do.columns[pid])]);
+      vals <- apply(vals.tbl, 2, mean);   # average across the three instances
+      lines(x=0:(length(vals+1)), y=c(0,vals), col=clrs.load[inds[1]], lwd=2);   
+    }
+    legend('topleft', legend=c("LowLoad", "MedLoad", "HighLoad"), col=clrs.load[c(1,4,7)], lwd=2, ncol=2, cex=0.7,  bty='n');
+    
+    
+    box();   
+    
+    plot(0:1, 0:1, type="n", ann=FALSE, axes=FALSE);  # blank plot for spacing
+    
+  }
+} 
+
+
+draw.plots("subcort");
+
+@
+
+\newpage
+\section*{Schaefer parcels}
+\noindent 400 parcels, 7 network ordering version. \par
+\vspace{0.2 cm}
+<<code2, dev='pdf', cache=FALSE, echo=FALSE, fig.height=2, fig.width=9, fig.align='center'>>=
+layout(matrix(1:5, 1:5));
+par(mar=c(1.2, 1, 1.3, 0.5), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+# mar: c(bottom, left, top, right) gives the number of lines of margin. Default is c(5, 4, 4, 2) + 0.1.
+
+draw.plots("sch");
+
+@
+
+\end{document}
