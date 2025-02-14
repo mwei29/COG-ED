@@ -1,0 +1,54 @@
+---
+title: "MARCER Proximity Models & fMRI Activity Modulation"
+author: "Mengzhe Wei"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: journal
+    toc: yes
+    toc_float:
+      collapsed: true
+---
+
+# MARCER COGED fMRI Results
+#### There are 143 participants that have completed scan session. 142 participants have at least some coged/nback in lab data (7306 was excluded due to not completing any coged/nback in and out of the scanner despite having IAPS data). 134 participants have at least some COGED scan data.
+#### N.b. all error bars in this summary are 95% CIs
+
+```{r choice_activity, warning=FALSE, message=FALSE}
+rm(list=ls())
+library(lme4); library(knitr); library(tidyverse)
+fMRI.path <- "C:/Users/Emotion/Documents/GIT-MW/COG-ED/Stats/"
+# Clean up model
+data <- read.delim(paste0(fMRI.path,"COGED_trialwise_data.txt"), header = TRUE)
+behavior <- data %>%
+  filter(choice !=9) %>%
+  mutate (choiceCode = if_else(choice == 1, 1, 0),#1 is choosing easy, 2 is choosing hard. So after recoding, 1 is easy, 0 is hard. As proximity goes higher, people should be more biased to choose the easier option.
+         loadCode = factor(Task, levels = c(1,2,3), labels = c(-1,0,1)),
+         rewardCode = factor(reward, levels = c(2,3,4), labels = c(-1,0,1)))
+behavior$loadCode <- as.numeric(as.character(behavior$loadCode))
+behavior$rewardCode <- as.numeric(as.character(behavior$rewardCode))
+
+# Behavioral choice model
+prox.choice <- glmer(data = behavior, choiceCode ~ proximity + rewardCode + loadCode + (proximity|subID), family = "binomial")
+summary(prox.choice) #As expected, the higher the proximity, the more likely people are to choose the easier option. The higher the reward for the harder option, the less likely people are to choose the easier option (p = 0.069). The higher the load of the hard task is, the more likely people are to choose the easier option. 
+
+# Model 1: dACC activity related to proximity
+dm.prox <- glmer(data = behavior, dm.dACC ~ proximity + (1 | subID), family = "gaussian")
+summary(dm.prox) # proximity doesn't predict dACC activity during decision making phase
+
+# Model 2: Activity choice model without random slope for proximity
+activity.choice <- glmer(data = behavior, choiceCode ~ dm.dACC + eval.dACC + proximity + rewardCode + loadCode + (1 | subID), family = "binomial")
+summary(activity.choice) # dACC activity doesn't predict choice behavior
+
+# Model 3: Activity model with proximity as a fixed effect
+activity <- glmer(data = behavior, dm.dACC ~ eval.dACC + (1 | subID), family = "gaussian")
+summary(activity) # the activity during evaluation phase does predict the activity during decision making phase
+
+# Model 4: Decision making model with proximity as a fixed effect
+activity.dm <- glmer(data = behavior, dm.dACC ~ eval.dACC + rewardCode + loadCode + (1 | subID), family = "gaussian")
+summary(activity.dm) # It seems that the load predicts lower decision making phase activity
+
+# Model 5: Evaluation activity model without random slope for proximity
+activity.eval <- glmer(data = behavior, eval.dACC ~ rewardCode + loadCode + (1 | subID), family = "gaussian")
+summary(activity.eval) # reward or load doesn't predict dACC's evaluation activity
+```
