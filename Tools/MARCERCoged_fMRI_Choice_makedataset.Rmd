@@ -1,0 +1,185 @@
+---
+title: "Behavioral Proximity Models & fMRI Activity Modulation"
+author: "MW"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+---
+### This file is compile a txt dataset that includes the evaluation and decision making activity per trial and the choice behavior.  
+Notes: Made by MW on 2/12/2025. Part of the file is to create dataset holding trialwise activity based on schaefer 400 parcels, the other part for spherical ROIs. \par
+
+dACC parcel IDs: \par
+7Networks_LH_SalVentAttn_Med_1 P107 \par
+7Networks_LH_SalVentAttn_Med_2 P108 \par
+7Networks_LH_SalVentAttn_Med_4 P110 \par
+7Networks_RH_SalVentAttn_Med_1 P311 \par
+7Networks_RH_SalVentAttn_Med_2 P312 \par
+For schafer parcels, I plan to first look at them separately and then combine it all together. \par
+In the coged behavioral file, starting trial 46 is the first run of coged. \par
+
+```{r setup, warning=FALSE, message=FALSE}
+rm(list=ls())
+#Packages; this new version won't be using boxr since I have already compile a complete dataset for coged behavioral data using CogED_MARCER_Behavior.rmd
+
+library(lme4); library(knitr); library(rlang)
+#library(boxr);
+#box_auth(); 
+#wustl.box <- TRUE;
+
+options(warnPartialMatchDollar=TRUE);   # safety option
+# fMRI.path <- "/scratch2/weie/COGED_CODE/np2_trial/np2trialwise/"
+# out.path <-"/scratch2/weie/COGED_CODE/np2_trial/np2analysis/"
+fMRI.path <- "/scratch2/weie/COGED_CODE/np2_trial/sphere_analysis/sphere_trialwise/"
+out.path <-"/scratch2/weie/COGED_CODE/np2_trial/sphere_analysis/"
+atlas.path <- "/data/MARCER/ATLASES/";  
+dir.desc <- "20250114";  
+sub.tbl <- read.table(paste0("/scratch2/weie/COGED_CODE/SubjectSet/", dir.desc, "_subjectSet.txt"), stringsAsFactors=FALSE);
+sub.ids <- sub.tbl$sub.id[which(sub.tbl$COGED_CatchNonCatch == TRUE)]
+# behavior.path <- box_ls('148056179835') 
+behavior.path <- "/scratch2/weie/COGED_CODE/Behavioral/"
+time.ids <- c("eval","dm")
+# parcel.ids <- c(107,108,110,311,312)
+parcel.ids <- c("VS_left", "VS_right", "vmPFC_right_Bartra", "AI_left", "AI_right", "PCC", "Brainstem", "ACC", "dACC", "SupGyr_right", "Cingulate_left", "ITG_left", "IFG_left", "IPL_left_1", "IPL_left_2", "TempPole_right", "vmPFC_right_LG", "vmPFC_left_LG", "Amygdala_right_1", "Amygdala_left", "IPS_left", "dmPFC", "IPS_right", "AI_right_Chong", "dlPFC_left", "dlPFC_right", "Insula_left", "Amygdala_right_2")
+```
+
+```{r sphere_dataset, eval=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
+#Compile a dataset with all choice behavior, proximity, and fMRI activity
+# col.names <- c("subID","trial","RT","choice","Task","proximity","reward","eval.107","eval.108","eval.110","eval.311","eval.312","dm.107","dm.108","dm.110","dm.311","dm.312","eval.dACC","dm.dACC")
+fixed_names <- c("subID","trial","choiceRT","choice","hardTask","proximityValue","rewardAmount")
+eval_names <- paste0("eval_", parcel.ids)
+dm_names <- paste0("dm_", parcel.ids)
+col.names <- c(fixed_names, eval_names, dm_names)
+tbl.all <- array(NA,c(36*3*length(sub.ids), length(col.names)), dimnames=list(NULL,col.names))
+tbl.all[,1] <- rep(sub.ids,each = 108)
+tbl.all[,2] <- rep(1:108)
+behavior.data <- read.csv(paste0(behavior.path,"coged.fmri.csv"))
+behavior.data <- behavior.data[behavior.data$trial>45,]
+behavior.data$trial <- behavior.data$trial -45
+##### I edited it til here. There must be an easier way. 
+tbl.all[,(3:7)] <- as.matrix(behavior.data[,c("choiceRT","choice","hardTask","proximityValue","rewardAmount")])
+for (sid in 1:length(sub.ids)) { #sid <- 1
+  # file.name <- paste0("coged-MARCER-fMRI-",sub.ids[sid],"-converted.csv")
+  # file.id <- box_search(file.name)
+  # behavior.data <- box_read(file.id)
+  # tbl.all[((sid-1)*108+1):(108*sid),(3:7)] <- as.matrix(behavior.data[46:153,c("choiceRT","choice","hardTask","proximityValue","rewardAmount")])
+  for (tid in 1:length(time.ids)) { # tid<-2
+    # fMRI.table <- read.delim(paste0(fMRI.path, "COGED_np2_trialwise_", time.ids[tid], "_sub", sub.ids[sid], ".txt"),header=FALSE)
+    fMRI.table <- read.delim(paste0(fMRI.path, "COGED_np2_trialwise_sphere_", time.ids[tid], "_sub", sub.ids[sid], ".txt"),header=FALSE)
+    tbl.all[((sid-1)*108+1):(108*sid), (length(fixed_names)+length(parcel.ids)*(tid-1)+1):(length(fixed_names)+length(parcel.ids)+length(parcel.ids)*(tid-1))] <- as.matrix(fMRI.table[,1:length(parcel.ids)])
+    # tbl.all[((sid-1)*108+1):(108*sid),(18+tid-1)] <- apply(fMRI.table[,parcel.ids], 1, mean, na.rm=TRUE)
+  }
+}
+# write.table(tbl.all,file = paste0(out.path, "COGED_trialwise_data.txt"), sep = "\t", row.names = FALSE, col.names = TRUE)
+write.table(tbl.all,file = paste0(out.path, "COGED_trialwise_data_sphere.txt"), sep = "\t", row.names = FALSE, col.names = TRUE)
+
+```
+
+```{r schaefer_dataset, eval=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
+#####Compile a different version with everything so that we can later make a correlation with IAPS. This part of code was not on git. I ran it only on the server.
+parcel.ids.all <- 1:400
+fixed_names <- c("subID", "trial", "RT", "choice", "Task", "proximity", "reward")
+eval_names <- paste0("eval", 1:400)
+dm_names <- paste0("dm", 1:400)
+col.names <- c(fixed_names, eval_names, dm_names)
+tbl.all <- array(NA,c(36*3*length(sub.ids), length(col.names)), dimnames=list(NULL,col.names))
+data <- read.delim(paste0(out.path, "COGED_trialwise_data.txt"), header = TRUE)
+tbl.all[,1:7] <- as.matrix(data[,1:7])
+for (sid in 1:length(sub.ids)) { #sid <- 1
+  for (tid in 1:length(time.ids)) { # tid<-1
+    fMRI.table <- read.delim(paste0(fMRI.path, "COGED_np2_trialwise_", time.ids[tid], "_sub", sub.ids[sid], ".txt"),header=FALSE)
+    tbl.all[((sid-1)*108+1):(108*sid),(8+400*(tid-1)):(407+400*(tid-1))] <- as.matrix(fMRI.table[,parcel.ids.all])
+  }
+}
+write.table(tbl.all,file = paste0(out.path, "COGED_trialwise_data_full.txt"), sep = "\t", row.names = FALSE, col.names = TRUE)
+data <- read.delim(paste0(out.path, "COGED_trialwise_data_full.txt"), header = TRUE)
+head(data)
+
+######Compile a different version with reward activity (highrew-lowrew) with GLM data
+out.path <- "/scratch2/weie/COGED_CODE/MW+CG_IAPSCOGED/"
+atlas.path <- "/data/MARCER/ATLASES/";  
+out.dirname <- paste0("/scratch2/weie/COGED_CODE/Stats/");   # top-level output directory for this particular analysis
+glm.path <- "/data/MARCER/participantData/AFNI_ANALYSIS/";   # top-level input directory
+subcort.tbl <- read.csv(paste0(atlas.path, "subcorticalKey.csv"), stringsAsFactors=FALSE);  # subcortical_MARCER3p0.nii.gz parcel labels
+mean.eval.row <- 3:5
+parcel.ids.all <- 1:400
+sub.ids <- sort(sub.tbl$sub.id[which(sub.tbl[,paste0("COGED_RewardLoad")] == TRUE)]);
+#Compile the empty dataset
+fixed_names <- "subID"
+subcort_names <- paste0(subcort.tbl$parcel.label, subcort.tbl$hemisphere)
+schaefer_names <- paste0("p", parcel.ids.all)
+col.names <- c(fixed_names, subcort_names, schaefer_names)
+tbl.all <- array(NA,c(length(sub.ids), length(col.names)), dimnames=list(NULL,col.names))
+type.ids <- c("subcortical_vol","Schaefer2018_400x7_vol")
+tbl.all[,1] <- sub.ids
+# Loop through both schaefer and subcortical
+for (tid in 1:length(type.ids)) { #tid <-2
+  for (sid in 1:length(sub.ids)) { #sid <- 1
+    rewload.lbls <- c(paste0("EV_Low_", 2:4), paste0("EV_Medium_", 2:4), paste0("EV_High_", 2:4));
+    rewload.lst <- vector("list", length(rewload.lbls));
+    for (rid in 1:length(rewload.lbls)) { #rid <-1
+      fname <- paste0(glm.path, sub.ids[sid], "/RESULTS/COGED_RewardLoad/", sub.ids[sid], "_", rewload.lbls[rid], "_", type.ids[tid], ".txt");
+      if (file.exists(fname)) { rewload.lst[[rid]]  <- read.delim(fname)[-c(1,2)]; } # take off first two (label) columns
+    }
+    if (tid == 1) { num.cols <- 19; num.rows <- 25; do.columns <- subcort.tbl$HCP.label} 
+    if (tid == 2) { num.cols <- 400; num.rows <- 25; do.columns <- 1:400} 
+    for  (pid in 1:num.cols)  { # pid <- 1
+      tmp.tbl <-array(NA,1:2)
+      for (vid in c(2,4)) {   # vid <- 2; #When vid <- 2 and pid <-1, we are looking at the lowest reward across 3 loads in the first parcel
+        inds <- which(rewload.lbls %in% c(paste0("EV_Low_", vid), paste0("EV_Medium_", vid), paste0("EV_High_", vid))); #read in all rew2
+        vals.tbl <- rbind(rewload.lst[[inds[1]]][,paste0("Mean_",do.columns[pid])],
+                          rewload.lst[[inds[2]]][,paste0("Mean_",do.columns[pid])],
+                          rewload.lst[[inds[3]]][,paste0("Mean_",do.columns[pid])]);
+        vals.reward <- apply (vals.tbl, 2, mean)
+        tmp.tbl[,vid/2] <- mean(vals.reward[mean.eval.row])
+      }
+      Rew4_Rew2<-tmp.tbl[,2]-tmp.tbl[,1]
+      if (tid == 1) {tbl.all[sid,1+pid] <- Rew4_Rew2}
+      if (tid == 2) {tbl.all[sid,20+pid] <- Rew4_Rew2}
+    }
+  }
+}
+write.table(tbl.all,file = paste0(out.path, "COGED_Rew4_Rew2_Eval.txt"), sep = "\t", row.names = FALSE, col.names = TRUE)
+        
+        for  (pid in 1:num.cols)  { # pid <- 1
+          # means for 2, 3, 4
+          for (vid in 2:4) {   # vid <- 3;
+            inds <- which(rewload.lbls %in% c(paste0("EV_Low_", vid), paste0("EV_Medium_", vid), paste0("EV_High_", vid)));
+            vals.tbl <- rbind(rewload.lst[[inds[1]]][,paste0("Mean_",do.columns[pid])],
+                              rewload.lst[[inds[2]]][,paste0("Mean_",do.columns[pid])],
+                              rewload.lst[[inds[3]]][,paste0("Mean_",do.columns[pid])]);
+            vals.reward <- apply (vals.tbl, 2, mean)
+            # means for target knots (3-5, 10-13)
+            val.reward.eval <- mean(vals.reward[mean.eval.row])
+            val.reward.dec <- mean(vals.reward[mean.dec.row])
+            #this needs to be changed.
+            # mdd.tbl[sid*3+vid-4,4,pid] <- val.reward.eval
+            # mdd.tbl[sid*3+vid-4,5,pid] <- val.reward.dec
+            # mdd.tbl[sid*3+vid-4,3,pid] <- paste0("rew",vid)
+            OA.tbl[sid*3+vid-4,4,pid] <- val.reward.eval
+            OA.tbl[sid*3+vid-4,5,pid] <- val.reward.dec
+            OA.tbl[sid*3+vid-4,3,pid] <- paste0("rew",vid)
+          }
+        }
+      }
+    }
+```
+
+
+```{r choice_activity, warning=FALSE, message=FALSE}
+# Behavioral choice model
+data <- read.delim(paste0(out.path, "COGED_trialwise_data.txt"), header = TRUE)
+library(tidyverse)
+install.packages("tidyverse") #Starting here I was having issue with tidyverse, so this part of code is only updated in GIT. I ran it locally.
+behavior <- data[data$choice !=9, ] 
+behavior$choiceCode <- ifelse(behavior$choice ==1, 1, 0) #1 is choosing easy, 2 is choosing hard. So after recoding, 1 is easy, 0 is hard.
+  mutate (choiceCode = if_else(choice == 1, 1, 0),
+         loadCode = factor(Task, levels = c(1,2,3), labels = c(-1,0,1)),
+         rewardCode = factor(reward, levels = c(2,3,4), labels = c(-1,0,1)))
+behavior$loadCode <- as.numeric(as.character(behavior$loadCode))
+behavior$rewardCode <- as.numeric(as.character(behavior$rewardCode))
+
+dm~proximity+(1|PID)
+choice~eval+dm+proximity+Task+Reward+(1|PID)
+```
+
+
