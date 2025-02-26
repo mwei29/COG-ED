@@ -23,6 +23,7 @@ EVTS.path <- "/data/MARCER/participantData/";
 in.path <- "/scratch2/weie/COGED_CODE/np2_trial/sphere_analysis/sphere_data/"
 out.path <- "/scratch2/weie/COGED_CODE/np2_trial/sphere_analysis/sphere_table/"
 trial.out.path <- "/scratch2/weie/COGED_CODE/np2_trial/sphere_analysis/sphere_trialwise/"
+rewload.out.path <- "/scratch2/weie/COGED_CODE/np2_trial/sphere_analysis/sphere_rewardload/"
 pp.path<-"/data/MARCER/participantData/fMRIPrep_PREPROCESSED/"
 atlas.path <- "/data/MARCER/ATLASES/";  
 afni.path <- "/usr/local/pkg/afni_22/";   # path to the afni function executables
@@ -60,15 +61,24 @@ stop.TR.dm <- 14;  # which TR to stop averaging at: stop.sec seconds after onset
 # out.suffix <- paste0("avg", start.sec, "to", stop.sec, "secAfter");   # suffix for the output filenames to keep track of averaging
 @
 
+% \noindent \texttt{MARCER\textunderscore COGEDaveragingSphere.rnw} \par
+% \noindent compiled \today\  \par
+% \vspace{0.2 cm} 
+% \noindent This is a knitr file with each MARCER's subject's average activity in np2 format during 3 runs of COGED. Quality checking before going into trial-wise analysis. Instead of Schaefer parcels, the parcels have been resampled to spheres from Jenny's JNeuro paper. \par
+% \noindent Each participant should have 3 COGED runs, which are graphed on the same plot. Each grey line is each run for each individual participant.The blue lines are the aggregated average activity in each run. The light blue line represents to run 1, blue line represents run 2, and the dark blue line represents run 3. \par
+% \noindent Evaluation phase (yellow) is set between knots 4-6; decision making phase (blue) is set between knots 11-14. Note that it's different from Jenny Crawford's dACC paper and MARCER COGED GLM knitrs. \par
+% \noindent Good to move on to trial-wise averaging since data looks sensible. The timing of the peaks of evaluation phase and decision making phase shifts a bit between parcels, which is common since even with BOLD primary sensory cortices are likely to have activity changes a bit earlier than "higher level" regions. And there's  a lot of variation within people - the curve shapes are generally very nice (most activity have peaks around the same time, but some are before, others after.) \par
+% \noindent Subjects 3147,3384,5264 do not have COGED run 3 behavioral data. \par
+% \vspace{1.2 cm} 
+
 \noindent \texttt{MARCER\textunderscore COGEDaveragingSphere.rnw} \par
 \noindent compiled \today\  \par
-\vspace{0.2 cm} 
-\noindent This is a knitr file with each MARCER's subject's average activity in np2 format during 3 runs of COGED. Quality checking before going into trial-wise analysis. Instead of Schaefer parcels, the parcels have been resampled to spheres from Jenny's JNeuro paper. \par
-\noindent Each participant should have 3 COGED runs, which are graphed on the same plot. Each grey line is each run for each individual participant.The blue lines are the aggregated average activity in each run. The light blue line represents to run 1, blue line represents run 2, and the dark blue line represents run 3. \par
-\noindent Evaluation phase (yellow) is set between knots 4-6; decision making phase (blue) is set between knots 11-14. Note that it's different from Jenny Crawford's dACC paper and MARCER COGED GLM knitrs. MARCER and COGEDPETMR projects have different TRs, so it makes sense that the peak doesn't match completely. \par
-\noindent Good to move on to trial-wise averaging since data looks sensible. The timing of the peaks of evaluation phase and decision making phase shifts a bit between parcels, which is common since even with BOLD primary sensory cortices are likely to have activity changes a bit earlier than "higher level" regions. And there's  a lot of variation within people - the curve shapes are generally very nice (most activity have peaks around the same time, but some are before, others after.) \par
+\vspace{0.2 cm}
+\noindent This is a knitr file with each MARCER's subject's average activity in np2 format during COGED. Quality checking for the timewindow for trialwise analysis. Instead of Schaefer parcels, the parcels have been resampled to spheres from Jenny's JNeuro paper. \par
+\noindent This graph aggregated all three runs of coged and showed average activity for each reward. \par
+\noindent Evaluation phase (yellow) is set between knots 4-6; decision making phase (blue) is set between knots 11-14. Note that it's different from Jenny Crawford's dACC paper and MARCER COGED GLM knitrs. \par
 \noindent Subjects 3147,3384,5264 do not have COGED run 3 behavioral data. \par
-\vspace{1.2 cm} 
+\vspace{1.2 cm}
 
 % \noindent Single Subject knitr. \par
 % \vspace{0.2 cm}
@@ -139,7 +149,7 @@ for (pid in 265:292) {   # pid <- 1
 
 <<code1pre, eval=FALSE, cache=FALSE, echo=FALSE, fig.height=2, fig.width=7, fig.align='center'>>= 
 ###### Prepping for knitr #####
-# Create intermediate files for knitr; contains checks for EVTs and np2
+# Create intermediate files for knitr; contains checks for EVTs and np2; end result has each participant's average activity in that run in that parcel
 for (pid in 265:292) { #pid <- 265; seems like I need to restart at pid 233
   for (rid in 1:length(run.ids)) { #rid<-3
     all.means <- array(NA, c(length(sub.ids), n.TRs));
@@ -194,24 +204,76 @@ for (pid in 265:292) { #pid <- 265; seems like I need to restart at pid 233
 
 @
 
+<<code2pre, eval=FALSE, cache=FALSE, echo=FALSE, fig.height=2, fig.width=7, fig.align='center'>>= 
+###### Prepping for knitr #####
+# Create intermediate files for knitr; contains checks for EVTs and np2; end result will be all participants' 108 trials' activity in one sphere
+behavior.path <- "/scratch2/weie/COGED_CODE/Behavioral/"
+  behavior.data <- read.csv(paste0(behavior.path,"coged.fmri.csv"))
+  behavior.data <- behavior.data[behavior.data$trial>45,]
+  behavior.data$trial <- behavior.data$trial -45
+fixed_names <- c("subID","trial","choiceRT","choice","hardTask","proximityValue","rewardAmount")
+t.names <- paste0("TR",1:25)
+col.names <- c(fixed_names,t.names)
+for (pid in 1:length(parcels)) { #pid<-1
+  tbl.all <- array(NA,c(36*length(run.ids)*length(sub.ids), length(col.names)), dimnames=list(NULL,col.names))
+  tbl.all[,1] <- rep(sub.ids,each = 108)
+  tbl.all[,2] <- rep(1:108)
+  tbl.all[,(3:7)] <- as.matrix(behavior.data[,c("choiceRT","choice","hardTask","proximityValue","rewardAmount")])
+  for (sid in 1:length(sub.ids)) { # sid<-1
+    # Reading in EVTs file
+    evt.fname <- paste0(EVTS.path, "EVTS/", sub.ids[sid], "/", sub.ids[sid], "_COGED_EV_valuation.txt");
+    if (!file.exists(evt.fname)) {
+      message("EVTs file does not exisit for subject", sub.ids[sid])
+      stop()
+    } else {
+      fin <- file(evt.fname, 'rt')
+      tmp <- readLines(fin);
+      close(fin); unlink(fin);
+      if (length(tmp) != length(run.ids)) { stop("not expected evt file"); }
+      # Reading in np2 files
+      for (rid in 1:length(run.ids)) { #rid <-1
+        evt.vec <- as.numeric(strsplit(tmp[rid], " ")[[1]]);
+        np.fname <- paste0(in.path, "sub-", sub.ids[sid], 
+                           "_ses-1_task-COGED_run", run.ids[rid], "_np", which.polort, "_sphere.txt");
+        if (!file.exists(np.fname)) {
+          message("np2 file does not exist for subject", sub.ids[sid])
+          stop()
+        } else {
+          np.tbl <- read.delim(np.fname);
+          if (all(is.na(evt.vec))) {
+            message("EVTs run:", run.ids[rid], " does not exist for subject", sub.ids[sid])
+            next
+          } else {
+            for (i in 1:length(evt.vec)) { # i<-1
+              tbl.all[i+36*(rid-1)+108*(sid-1),8:32] <- np.tbl[evt.vec[i]:((evt.vec[i])+n.TRs-1), paste0("Mean_", parcels[pid])]; 
+            }
+          }
+        }
+      }
+    }
+  }
+  write.table(tbl.all,file = paste0(rewload.out.path, "COGED_np2_trialwise_sphere_rewload_p", parcels[pid], ".txt"), sep = "\t", row.names = FALSE, col.names = TRUE)
+}
+@
+
 \noindent MARCER participants with overplotted mean timecourses in spheres-average volumes, \Sexpr{task.id}. \par
 \vspace{0.2 cm} 
-<<code1, eval=TRUE, cache=FALSE, echo=FALSE, fig.height=2, fig.width=7, fig.align='center'>>= 
+<<code1, eval=FALSE, cache=FALSE, echo=FALSE, fig.height=2, fig.width=7, fig.align='center'>>= 
 layout(matrix(1:6, 1:6)); 
 par(mar=c(2, 1, 1.5, 0.5), mgp=c(1.1, 0.2, 0), tcl=-0.3);
 n.TRs <- 25;
 colors<-c('cyan','dodgerblue','darkblue')
 # mar: c(bottom, left, top, right) gives the number of lines of margin on the four sides of the plot. Default is c(5, 4, 4, 2) + 0
-##### New attempt to read in intermediate file
+##### Read in intermediate file
 for (pid in 1:length(parcels)) { #pid<-1
   plot(x=1, y=1, type='n', xlim=c(0,(n.TRs-1)), ylim=c(-0.015, 0.02), xlab="TR since event onset", ylab="", xaxs='i', cex.axis=0.8, cex.lab=0.8);
   mtext(paste0(p.name[pid]), side=3, cex=0.6, line=0.15);
-  lines(x=c(-10,1000), y=c(0,0), col='black'); #Creating a horizontal line
   #Adding the rectangle for evaluation phase and decision making phase; not sure if it works so we'll need to test it first
   rect(xleft=start.TR.eval, xright=stop.TR.eval, ybottom=-20, ytop=20, col='cornsilk', border=NA);
   rect(xleft=start.TR.dm, xright=stop.TR.dm, ybottom=-20, ytop=20, col='aliceblue', border=NA);
+  lines(x=c(-10,1000), y=c(0,0), col='black'); #Creating a horizontal line
   for (rid in 1:length(run.ids)) {       # rid <- 1; 
-    all.means <- read.delim(paste0(out.path,"COGED_np2_Sphere_p",parcels[pid],"_run",rid,".txt")) #let's see if this perfectly reads my txt!
+    all.means <- read.delim(paste0(out.path,"COGED_np2_Sphere_p",parcels[pid],"_run",rid,".txt"),header = FALSE, row.names = NULL) #let's see if this perfectly reads my txt!
     for (sid in 1:length(sub.ids)) {
       lines(x=0:(n.TRs-1), y=all.means[sid,], col='darkgrey', lwd=0.5)
     }
@@ -229,6 +291,33 @@ for (pid in 1:length(parcels)) { #pid<-1
   #   }
   # }
 }
+@
+
+<<code1rew, eval=TRUE, cache=FALSE, echo=FALSE, fig.height=2, fig.width=7, fig.align='center'>>= 
+layout(matrix(1:6, 1:6)); 
+par(mar=c(2, 1, 1.5, 0.5), mgp=c(1.1, 0.2, 0), tcl=-0.3);
+n.TRs <- 25;
+colors<-c('cyan','dodgerblue','darkblue')
+# mar: c(bottom, left, top, right) gives the number of lines of margin on the four sides of the plot. Default is c(5, 4, 4, 2) + 0
+##### Read in intermediate file
+for (pid in 1:length(parcels)) { #pid<-1
+  plot(x=1, y=1, type='n', xlim=c(0,(n.TRs-1)), ylim=c(-0.015, 0.02), xlab="TR since event onset", ylab="", xaxs='i', cex.axis=0.8, cex.lab=0.8);
+  mtext(paste0(p.name[pid]), side=3, cex=0.6, line=0.15);
+  #Adding the rectangle for evaluation phase and decision making phase; not sure if it works so we'll need to test it first
+  rect(xleft=start.TR.eval, xright=stop.TR.eval, ybottom=-20, ytop=20, col='cornsilk', border=NA);
+  rect(xleft=start.TR.dm, xright=stop.TR.dm, ybottom=-20, ytop=20, col='aliceblue', border=NA);
+  lines(x=c(-10,1000), y=c(0,0), col='black'); #Creating a horizontal line
+    all.means <- read.delim(paste0(rewload.out.path,"COGED_np2_trialwise_sphere_rewload_p", parcels[pid], ".txt"),header = TRUE, row.names = NULL)
+    t.names <- paste0("TR",1:25)
+    rew <- c(2,3,4)
+    tmp.tbl <- array(NA,c(length(rew), length(t.names)))
+    for (rid in 1:length(rew)) {
+      tmp.tbl[rid,] <- colMeans(all.means[all.means$rewardAmount == rew[rid],t.names, drop=FALSE],na.rm=TRUE)
+      lines(x=0:(n.TRs-1), y=tmp.tbl[rid,], col=colors[rid], lwd=2);
+    }
+      legend("topright",legend = paste0("Rew",rew), col=colors, lwd=2, cex=0.8,bty = "n")
+  }
+  box();
 @
 
 <<code2trialwise, eval=FALSE, echo=FALSE, cache=TRUE>>=
@@ -310,54 +399,6 @@ for (sid in 1:length(sub.ids)) { # sid<-9
     write.table(dm.means,file = paste0(trial.out.path, "COGED_np2_trialwise_sphere_dm_sub", sub.ids[sid], ".txt"), sep = "\t", row.names = FALSE, col.names = FALSE)
   }
   }
-@
-
-<<code1OG, eval=FALSE, cache=FALSE, echo=FALSE, fig.height=2, fig.width=7, fig.align='center'>>=     
-##### Original script that calculates everything on the go #####    
-# everyone's means overplotted, a few parcels
-for (pid in 1:400) { # pid <- 1;
-  #for (pid in c(113, 116, 300,  623, 627, 850, 1, 501, 2)) {   
-  for (rid in 1:length(run.ids)) {       # rid <- 1; 
-    plot(x=1, y=1, type='n', xlim=c(0,(n.TRs-1)), ylim=c(-0.015, 0.02), xlab="TR since event onset", ylab="", xaxs='i', cex.axis=0.8, cex.lab=0.8);
-    mtext(paste0("Volume. p", pid, " run", rid), side=3, cex=0.6, line=0.15);
-    lines(x=c(-10,1000), y=c(0,0), col='black');    #  horizontal line at zero      
-    all.means <- array(NA, c(length(sub.ids), n.TRs));
-    for (sid in 1:length(sub.ids)) {     #   sid <- 1;
-      evt.fname <- paste0(in.path, "EVTS/", sub.ids[sid], "/", sub.ids[sid], "_COGED_EV_valuation.txt");
-      if (file.exists(evt.fname)) {
-        # First, get the evt file into a list of three runs 
-        fin <- file(evt.fname, 'rt')
-        tmp <- readLines(fin);
-        close(fin); unlink(fin);
-        if (length(tmp) != length(run.ids)) { stop("not expected evt file"); }
-        evt.lst <- vector("list", length(run.ids));
-        # for (i in 1:length(run.ids)) { evt.lst[[i]] <- as.numeric(strsplit(tmp[i], " ")[[1]]); }
-        evt.lst[[rid]] <- as.numeric(strsplit(tmp[rid], " ")[[1]]);
-        
-        # Then, we do the same thing for np   
-        np.lst <- vector("list", length(run.ids));
-        # for (rid in 1:length(run.ids)) {
-        np.fname <- paste0(in.path, "AFNI_ANALYSIS/", sub.ids[sid], "/INPUT_DATA_NP2/sub-", sub.ids[sid],
-                           "_ses-1_task-COGED_run", run.ids[rid], "_np", which.polort, ".txt");
-        if (file.exists(np.fname)) {
-          # read the parcel-average timeseries for this run
-          np.tbl <- read.delim(np.fname);
-          if (ncol(np.tbl) != 402) { stop("ncol(np.tbl) != 402"); }  # volume "timecourses" files have parcel numbers for the columns
-          np.lst[[rid]] <- np.tbl;
-        }
-      }
-      np.tbl <- np.lst[[rid]]
-      evt.vec <- evt.lst[[rid]];
-      tmp.tbl <- array(NA, c(length(evt.vec), n.TRs));
-      for (i in 1:length(evt.vec)) { # i<-2
-        tmp.tbl[i,] <- np.tbl[evt.vec[i]:((evt.vec[i])+n.TRs-1), paste0("Mean_", pid)]; } 
-      all.means[sid,] <- apply(tmp.tbl, 2, mean, trim=do.trim, na.rm=TRUE)
-      lines(x=0:(n.TRs-1), y=all.means[sid,], col='darkgrey', lwd=0.5);
-    }
-  lines(x=0:(n.TRs-1), y=apply(all.means, 2, mean, trim=do.trim), col='steelblue', lwd=2);
-    }
-box();
-}
 @
 
 \end{document}
