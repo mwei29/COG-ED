@@ -54,8 +54,8 @@ which.polort <- 2;    # see http://mvpa.blogspot.com/2018/06/detrending-and-norm
 # # variables for how to do the averaging. idea is to try to capture the HRF peak. button presses are short, so try a short window.
 # start.sec <- 3;     # when to start the averaging, in seconds after event onset
 # stop.sec <- 6;     # and when to stop
-start.TR.eval <- 4;  # which TR to start averaging at: start.sec seconds after onset for evaluation
-stop.TR.eval <- 6;  # which TR to stop averaging at: stop.sec seconds after onset for evaluation
+start.TR.eval <- 5;  # which TR to start averaging at: start.sec seconds after onset for evaluation
+stop.TR.eval <- 7;  # which TR to stop averaging at: stop.sec seconds after onset for evaluation
 start.TR.dm <- 11;  # which TR to start averaging at: start.sec seconds after onset for evaluation
 stop.TR.dm <- 14;  # which TR to stop averaging at: stop.sec seconds after onset for evaluation
 # out.suffix <- paste0("avg", start.sec, "to", stop.sec, "secAfter");   # suffix for the output filenames to keep track of averaging
@@ -75,8 +75,8 @@ stop.TR.dm <- 14;  # which TR to stop averaging at: stop.sec seconds after onset
 \noindent compiled \today\  \par
 \vspace{0.2 cm}
 \noindent This is a knitr file with each MARCER's subject's average activity in np2 format during COGED. Quality checking for the timewindow for trialwise analysis. Instead of Schaefer parcels, the parcels have been resampled to spheres from Jenny's JNeuro paper. \par
-\noindent This graph aggregated all three runs of coged and showed average activity for each reward. \par
-\noindent Evaluation phase (yellow) is set between knots 4-6; decision making phase (blue) is set between knots 11-14. Note that it's different from Jenny Crawford's dACC paper and MARCER COGED GLM knitrs. \par
+\noindent This graph aggregated all three runs of coged and showed average activity for each load. \par
+\noindent Evaluation phase (yellow) is set between knots 4-6; UPDATE 2/27/25: switched to 5-7 since it might fit the peak with the sphere better; decision making phase (blue) is set between knots 11-14. Note that it's different from Jenny Crawford's dACC paper and MARCER COGED GLM knitrs. \par
 \noindent Subjects 3147,3384,5264 do not have COGED run 3 behavioral data. \par
 \vspace{1.2 cm}
 
@@ -258,7 +258,7 @@ for (pid in 1:length(parcels)) { #pid<-1
 
 \noindent MARCER participants with overplotted mean timecourses in spheres-average volumes, \Sexpr{task.id}. \par
 \vspace{0.2 cm} 
-<<code1, eval=FALSE, cache=FALSE, echo=FALSE, fig.height=2, fig.width=7, fig.align='center'>>= 
+<<code1knitr, eval=FALSE, cache=FALSE, echo=FALSE, fig.height=2, fig.width=7, fig.align='center'>>= 
 layout(matrix(1:6, 1:6)); 
 par(mar=c(2, 1, 1.5, 0.5), mgp=c(1.1, 0.2, 0), tcl=-0.3);
 n.TRs <- 25;
@@ -293,15 +293,16 @@ for (pid in 1:length(parcels)) { #pid<-1
 }
 @
 
-<<code1rew, eval=TRUE, cache=FALSE, echo=FALSE, fig.height=2, fig.width=7, fig.align='center'>>= 
+<<code2knitr, eval=TRUE, cache=FALSE, echo=FALSE, fig.height=2, fig.width=7, fig.align='center'>>= 
 layout(matrix(1:6, 1:6)); 
 par(mar=c(2, 1, 1.5, 0.5), mgp=c(1.1, 0.2, 0), tcl=-0.3);
 n.TRs <- 25;
-colors<-c('cyan','dodgerblue','darkblue')
+# colors<-c('cyan','dodgerblue','darkblue')
+colors<-c("#D8BFD8","#B565A7","#6A0DAD")
 # mar: c(bottom, left, top, right) gives the number of lines of margin on the four sides of the plot. Default is c(5, 4, 4, 2) + 0
 ##### Read in intermediate file
 for (pid in 1:length(parcels)) { #pid<-1
-  plot(x=1, y=1, type='n', xlim=c(0,(n.TRs-1)), ylim=c(-0.015, 0.02), xlab="TR since event onset", ylab="", xaxs='i', cex.axis=0.8, cex.lab=0.8);
+  plot(x=1, y=1, type='n', xlim=c(0,(n.TRs-1)), ylim=c(-0.01, 0.015), xlab="TR since event onset", ylab="", xaxs='i', cex.axis=0.8, cex.lab=0.8);
   mtext(paste0(p.name[pid]), side=3, cex=0.6, line=0.15);
   #Adding the rectangle for evaluation phase and decision making phase; not sure if it works so we'll need to test it first
   rect(xleft=start.TR.eval, xright=stop.TR.eval, ybottom=-20, ytop=20, col='cornsilk', border=NA);
@@ -309,13 +310,16 @@ for (pid in 1:length(parcels)) { #pid<-1
   lines(x=c(-10,1000), y=c(0,0), col='black'); #Creating a horizontal line
     all.means <- read.delim(paste0(rewload.out.path,"COGED_np2_trialwise_sphere_rewload_p", parcels[pid], ".txt"),header = TRUE, row.names = NULL)
     t.names <- paste0("TR",1:25)
-    rew <- c(2,3,4)
-    tmp.tbl <- array(NA,c(length(rew), length(t.names)))
-    for (rid in 1:length(rew)) {
-      tmp.tbl[rid,] <- colMeans(all.means[all.means$rewardAmount == rew[rid],t.names, drop=FALSE],na.rm=TRUE)
+    load <- c(1,2,3)
+    # rew <- c(2,3,4)
+    # tmp.tbl <- array(NA,c(length(rew), length(t.names)))
+    tmp.tbl <- array(NA,c(length(load), length(t.names)))
+    for (rid in 1:length(load)) {
+      tmp.tbl[rid,] <- colMeans(all.means[all.means$hardTask == load[rid],t.names, drop=FALSE],na.rm=TRUE)
       lines(x=0:(n.TRs-1), y=tmp.tbl[rid,], col=colors[rid], lwd=2);
     }
-      legend("topright",legend = paste0("Rew",rew), col=colors, lwd=2, cex=0.8,bty = "n")
+      # legend("topright",legend = paste0("Rew",rew), col=colors, lwd=2, cex=0.8,bty = "n")
+    legend("topright",legend = paste0("Load",2:4), col=colors, lwd=2, cex=0.8,bty = "n")
   }
   box();
 @
