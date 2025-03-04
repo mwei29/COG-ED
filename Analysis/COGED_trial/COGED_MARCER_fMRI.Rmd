@@ -14,41 +14,271 @@ output:
 #### There are 143 participants that have completed scan session. 142 participants have at least some coged/nback in lab data (7306 was excluded due to not completing any coged/nback in and out of the scanner despite having IAPS data). 134 participants have at least some COGED scan data.
 #### N.b. all error bars in this summary are 95% CIs
 
-```{r choice_activity, warning=FALSE, message=FALSE}
+```{r setup, warning=FALSE, message=FALSE}
 rm(list=ls())
-library(lme4); library(knitr); library(tidyverse)
-fMRI.path <- "C:/Users/Emotion/Documents/GIT-MW/COG-ED/Stats/"
+library(lme4); library(tidyverse)
+fMRI.path <- "C:/Users/Emotion/Documents/GIT-MW/COG-ED/Data/TrialData/"
+demo <- read.csv("C:/Users/Emotion/Documents/GIT-MW/COG-ED/Data/BehaviorData/demo.csv")
 # Clean up model
-data <- read.delim(paste0(fMRI.path,"COGED_trialwise_data.txt"), header = TRUE)
-behavior <- data %>%
+data <- read.delim(paste0(fMRI.path,"COGED_trialwise_data_sphere_5-7.txt"), header = TRUE)
+data.clean <- data %>%
+  left_join(demo %>% select(sub.id, MDD_Status, Age), by = c("subID" = "sub.id")) %>%
   filter(choice !=9) %>%
-  mutate (choiceCode = if_else(choice == 1, 1, 0),#1 is choosing easy, 2 is choosing hard. So after recoding, 1 is easy, 0 is hard. As proximity goes higher, people should be more biased to choose the easier option.
-         loadCode = factor(Task, levels = c(1,2,3), labels = c(-1,0,1)),
-         rewardCode = factor(reward, levels = c(2,3,4), labels = c(-1,0,1)))
-behavior$loadCode <- as.numeric(as.character(behavior$loadCode))
-behavior$rewardCode <- as.numeric(as.character(behavior$rewardCode))
+  mutate (choiceCode = if_else((choice == 1), 0, 1), #1 is choosing easy, 2 is choosing hard. So after recoding, 0 is easy, 1 is hard. As proximity goes higher, people should be more biased to choose the harder option.
+          loadCode = factor(hardTask, levels = c(1,2,3), labels = c(-1,0,1)),
+          rewardCode = factor(rewardAmount, levels = c(2,3,4), labels = c(-1,0,1)),
+          groupCode = factor (MDD_Status, levels = c("HC", "MDD"), labels = c(0,1)),
+          Age_centered = scale(Age, center = TRUE, scale = FALSE),
+          eval_vmPFC = rowMeans(select(., eval_vmPFC_right_LG, eval_vmPFC_left_LG, eval_vmPFC_right_Bartra), na.rm = TRUE),
+          eval_VS = rowMeans(select(., eval_VS_right, eval_VS_left), na.rm = TRUE),
+          dm_AI = rowMeans(select(., dm_AI_left, dm_AI_right,dm_AI_right_Chong), na.rm = TRUE),
+          dm_IPL = rowMeans(select(., dm_IPL_left_1,dm_IPL_left_2), na.rm = TRUE))
+data.clean$loadCode <- as.numeric(as.character(data.clean$loadCode))
+data.clean$rewardCode <- as.numeric(as.character(data.clean$rewardCode))
+data.clean$Age <- as.numeric(as.character(data.clean$Age))
+data.clean$groupCode <- as.numeric(as.character(data.clean$groupCode))
+data.clean$subID <-  as.factor(data.clean$subID)
 
-# Behavioral choice model
-prox.choice <- glmer(data = behavior, choiceCode ~ proximity + rewardCode + loadCode + (proximity|subID), family = "binomial")
-summary(prox.choice) #As expected, the higher the proximity, the more likely people are to choose the easier option. The higher the reward for the harder option, the less likely people are to choose the easier option (p = 0.069). The higher the load of the hard task is, the more likely people are to choose the easier option. 
+data.clean <- data.clean %>%
+  mutate(Age_centered = scale(Age, center = TRUE, scale = FALSE))
+```
 
-# Model 1: dACC activity related to proximity
-dm.prox <- glmer(data = behavior, dm.dACC ~ proximity + (1 | subID), family = "gaussian")
-summary(dm.prox) # proximity doesn't predict dACC activity during decision making phase
+#### Behavior check
+```{r Behavior, warning=FALSE, message=FALSE}
+# Behavioral choice model 
+prox.choice <- glmer(data = data.clean, choiceCode ~ proximityValue + rewardCode + loadCode + (proximityValue|subID), family = "binomial")
+summary(prox.choice) #As expected, the higher the proximity, the more likely people are to choose the harder option. The higher the reward for the harder option, the more likely people are to choose the harder option (p = 0.004). The higher the load of the hard task is, the less likely people are to choose the easier option. 
+library(easystats)
+prox.choice.plot <- get_datagrid(prox.choice, by = c("proximityValue","subID"), preserve_range = TRUE)
+preds <- estimate_relation(prox.choice, include_random = T, data = prox.choice.plot)
 
-# Model 2: Activity choice model without random slope for proximity
-activity.choice <- glmer(data = behavior, choiceCode ~ dm.dACC + eval.dACC + proximity + rewardCode + loadCode + (1 | subID), family = "binomial")
-summary(activity.choice) # dACC activity doesn't predict choice behavior
+prox.choice.plot.fixed <- get_datagrid(prox.choice, by = c("proximityValue"), preserve_range = TRUE)
+fixed_pred <- estimate_relation(prox.choice, at = "proximityValue", data = prox.choice.plot.fixed)
 
-# Model 3: Activity model with proximity as a fixed effect
-activity <- glmer(data = behavior, dm.dACC ~ eval.dACC + (1 | subID), family = "gaussian")
-summary(activity) # the activity during evaluation phase does predict the activity during decision making phase
+fig1 <- ggplot(fixed_pred, aes(x=proximityValue, y=Predicted)) + 
+  geom_ribbon(data = fixed_pred, aes(x = proximityValue, ymin = CI_low, ymax = CI_high), alpha = 0.5) +
+  geom_line(data = fixed_pred, aes(x = proximityValue, y = Predicted), linewidth = 2) +
+  geom_line(data = preds, aes(x=proximityValue, y=Predicted, group=subID, colour = factor(subID)), alpha=0.5) + theme_classic() + labs(x= "Relative Subjective Value of High-Effort Option", y="Proabability of High-Effort Option")
+fig.pt <- fig1 + guides(colour=FALSE) + geom_hline(yintercept = 0.5, linetype = "dashed") + 
+  geom_vline(xintercept = 0, linetype = "dashed")
+fig.pt
+```
 
-# Model 4: Decision making model with proximity as a fixed effect
-activity.dm <- glmer(data = behavior, dm.dACC ~ eval.dACC + rewardCode + loadCode + (1 | subID), family = "gaussian")
-summary(activity.dm) # It seems that the load predicts lower decision making phase activity
+# Hypotheses testing
 
-# Model 5: Evaluation activity model without random slope for proximity
-activity.eval <- glmer(data = behavior, eval.dACC ~ rewardCode + loadCode + (1 | subID), family = "gaussian")
-summary(activity.eval) # reward or load doesn't predict dACC's evaluation activity
+## H4: Task Load and Reward Effects  
+
+Model:  Generalized linear mixed-effects model with neural activation in vmPFC, VS, vlPFC, and OFC as the dependent variable. 
+
+**Predictors:** <br>
+- Main effect of task load and reward load (H4a)  <br>
+- Interaction between task load/reward load and age (H4b). <br>
+- Interaction between task load/reward load and MDD status (H4c).  <br>
+**ROI:** <br>
+- vmPFC: sphere vmPFC_right_LG, vmPFC_left_LG, vmPFC_right_Bartra
+- VS: sphere VS_left, VS_right
+- vlPFC & OFC: not sure how to define yet; we eyeballed it in our whole brain schaefer 400 knitr
+```{r H4, warning=F, message=F, cache=F}
+# H4a: task load and reward load on vmPFC
+vmPFC <- lmer(data = data.clean, eval_vmPFC ~ rewardCode + loadCode + groupCode + Age + (1 | subID))
+summary(vmPFC) # task load and reward load doesn't predict vmPFC activity during evaluation phase
+# H4a: task load and reward load on VS
+VS <- lmer(data = data.clean, eval_VS ~ rewardCode + loadCode + groupCode + Age + (1 | subID))
+summary(VS) # task load and reward load doesn't predict VS activity during evaluation phase, but age & depression predict higher activation
+
+# H4b: Age interaction with task
+vmPFC.age.task <- lmer(data = data.clean, eval_vmPFC ~ rewardCode + loadCode*Age + groupCode + (1 | subID))
+summary(vmPFC.age.task) #no interaction
+VS.age.task <- lmer(data = data.clean, eval_VS ~ rewardCode + loadCode*Age + groupCode + (1 | subID))
+summary(VS.age.task) #no interaction
+
+# H4b: Age interaction with reward
+vmPFC.age.reward <- lmer(data = data.clean, eval_vmPFC ~ rewardCode*Age + loadCode + groupCode + (1 | subID))
+summary(vmPFC.age.reward) #no interaction
+VS.age.reward <- lmer(data = data.clean, eval_VS ~ rewardCode*Age + loadCode + groupCode + (1 | subID))
+summary(VS.age.reward) #reward is associated with greater VS activation; older age is associated with greater VS activation;positive effect of reward on VS activation decreases with age.
+
+# H4c: MDD interaction with task
+vmPFC.MDD.task <- lmer(data = data.clean, eval_vmPFC ~ rewardCode + loadCode*groupCode + Age + (1 | subID))
+summary(vmPFC.MDD.task) #no interaction
+VS.MDD.task <- lmer(data = data.clean, eval_VS ~ rewardCode + loadCode*groupCode + Age + (1 | subID))
+summary(VS.MDD.task) #no interaction
+
+# H4c: MDD interaction with reward
+vmPFC.MDD.reward <- lmer(data = data.clean, eval_vmPFC ~ rewardCode*groupCode + loadCode + Age + (1 | subID))
+summary(vmPFC.MDD.reward) #no interaction
+VS.MDD.reward <- lmer(data = data.clean, eval_VS ~ rewardCode*groupCode + loadCode + Age + (1 | subID))
+summary(VS.MDD.reward) #no interaction
+
+#Exploratory: MDD and age interaction
+vmPFC.age.MDD.task <- lmer(data = data.clean, eval_vmPFC ~ loadCode*groupCode*Age + rewardCode + (1 | subID))
+summary(vmPFC.age.MDD.task) #NS
+vmPFC.age.MDD.reward <- lmer(data = data.clean, eval_vmPFC ~ rewardCode*groupCode*Age + loadCode + (1 | subID))
+summary(vmPFC.age.MDD.reward)#NS
+VS.age.MDD.task <- lmer(data = data.clean, eval_VS ~ loadCode*groupCode*Age + rewardCode + (1 | subID))
+summary(VS.age.MDD.task)#NS
+VS.age.MDD.reward <- lmer(data = data.clean, eval_VS ~ rewardCode*groupCode*Age + loadCode + (1 | subID))
+summary(VS.age.MDD.reward)#NS
+```
+
+## H5: Proximity Effects on Neural Activities 
+
+Model:  Generalized linear mixed-effects model with dACC and dmPFC activation as the dependent variable. 
+
+**Predictors:** <br>
+- Main effect of proximity  (H5a)  <br>
+- Interaction between proximity and age (H5b). <br>
+- Interaction between proximity and MDD status (H5c).  <br>
+**ROI:** <br>
+- dACC: sphere dACC
+- dmPFC: sphere dmPFC
+```{r H5, warning=F, message=F, cache=F}
+# H5a: proximity on dACC activation during decision making phase
+dACC <- lmer(data = data.clean, dm_dACC ~ proximityValue + groupCode + Age + (proximityValue | subID))
+summary(dACC) # same direction but not significant, age has a negative main effect of dACC activation
+
+dacc.fig.data <- get_datagrid(dACC, by = c("proximityValue","subID"), preserve_range = TRUE)
+dacc.fig.data.fixed <- get_datagrid(dACC, by = c("proximityValue"), preserve_range = TRUE)
+preds <- estimate_relation(dACC, include_random = T, data = dacc.fig.data)
+fixed_pred <- estimate_relation(dACC, at = "proximityValue", data = dacc.fig.data.fixed)
+fig.dACC <- ggplot(fixed_pred, aes(x=proximityValue, y=Predicted)) + 
+  geom_ribbon(data = fixed_pred, aes(x = proximityValue, ymin = CI_low, ymax = CI_high), alpha = 0.5) +
+  geom_line(data = fixed_pred, aes(x = proximityValue, y = Predicted), linewidth = 2) +
+  geom_line(data = preds, aes(x=proximityValue, y=Predicted, group=subID, colour = factor(subID)), alpha=0.5) + theme_classic() + labs(x= "Relative Subjective Value", y="dACC Activity") + ylim(-0.005,0.02)
+dacc.fig <- fig.dACC + guides(colour=FALSE)
+dacc.fig
+
+# H5a: proximity on dmPFC
+dmPFC <- lmer(data = data.clean, dm_dmPFC ~ proximityValue + groupCode + Age + (proximityValue | subID))
+summary(dmPFC) # N.S., age has a negative main effect of dACC activation
+
+# H5b: Age interaction on dACC
+dACC.age <- lmer(data = data.clean, dm_dACC ~ proximityValue*Age + groupCode + (proximityValue | subID))
+summary(dACC.age) #no interaction
+# H5b: Age interaction on dmPFC
+dmPFC.age <- lmer(data = data.clean, dm_dmPFC ~ proximityValue*Age + groupCode + (proximityValue | subID))
+summary(dmPFC.age) #no interaction
+
+# H5c: MDD interaction on dACC
+dACC.MDD <- lmer(data = data.clean, dm_dACC ~ proximityValue*groupCode + Age + (proximityValue | subID))
+summary(dACC.MDD) #no interaction
+# H5c: MDD interaction on dmPFC
+dmPFC.MDD <- lmer(data = data.clean, dm_dmPFC ~ proximityValue*groupCode + Age + (proximityValue | subID))
+summary(dmPFC.MDD) #no interaction
+
+#Exploratory: MDD & Age interaction
+dACC.age.MDD <- lmer(data = data.clean, dm_dACC ~ proximityValue*Age*groupCode + (proximityValue | subID))
+summary(dACC.age.MDD)
+dmPFC.age.MDD <- lmer(data = data.clean, dm_dmPFC ~ proximityValue*Age*groupCode + (proximityValue | subID))
+summary(dmPFC.age.MDD)
+```
+
+## H6:  Mediation of Relative SV and Choice Behavior (if H5a tested significant); H5a was insignificant, so only look at activation and choice behavior
+
+Model: Multilevel mediation analysis using dACC and dmPFC activation as predictors of choice behavior
+
+**Predictors:** <br>
+- Main effect of dACC and dmPFC activation  (H6a)  <br>
+- Interaction between dACC, dmPFC activation and age (H6b). <br>
+- Interaction between dACC, dmPFC activation and MDD status (H6c).  <br>
+**ROI:** <br>
+- dACC: sphere dACC
+- dmPFC: sphere dmPFC
+```{r H6, warning=F, message=F, cache=F}
+# H6a: dACC activation during decision making phase on choice behavior
+dACC <- glmer(data = data.clean, choiceCode ~ dm_dACC + groupCode + Age + (1 | subID),family = "binomial")
+summary(dACC) # NS
+
+# H6a: dmPFC activation during decision making phase on choice behavior
+dmPFC <- glmer(data = data.clean, choiceCode ~ dm_dmPFC + groupCode + Age + (1 | subID),family = "binomial")
+summary(dmPFC) # N.S.
+
+# H6b: Age interaction on dACC
+dACC.age <- glmer(data = data.clean, choiceCode ~ dm_dACC*Age_centered + groupCode + (1 | subID),family = "binomial")
+summary(dACC.age) #higher dm_dacc, higher chance of choosing the harder option. That effect is stronger in older adults (marginally significant)
+# H6b: Age interaction on dmPFC
+dmPFC.age <- glmer(data = data.clean, choiceCode ~ dm_dmPFC*Age_centered + groupCode + (1 | subID), family = "binomial")
+summary(dmPFC.age) #the association between dm_dmPFC and choosing the harder option is stronger in older adults.
+
+# H6c: MDD interaction on dACC
+dACC.MDD <- glmer(data = data.clean, choiceCode ~ dm_dACC*groupCode + Age_centered + (1 | subID),family = "binomial")
+summary(dACC.MDD) #no interaction
+# H6c: MDD interaction on dmPFC
+dmPFC.MDD <- glmer(data = data.clean, choiceCode ~ dm_dmPFC*groupCode + Age_centered + (1 | subID),family = "binomial")
+summary(dmPFC.MDD) #no interaction
+
+#Exploratory: MDD & Age interaction
+dACC.age.MDD <- glmer(data = data.clean, choiceCode ~ dm_dACC*Age_centered*groupCode + (1 | subID),family = "binomial")
+summary(dACC.age.MDD)
+dmPFC.age.MDD <- glmer(data = data.clean, choiceCode ~ dm_dmPFC*Age_centered*groupCode + (1 | subID),family = "binomial")
+summary(dmPFC.age.MDD)
+```
+
+## H7:  Decision Difficulty Proximity^2 on Neural Activity 
+
+Model: Generalized linear mixed-effects model predicting neural activation in AI and IPL as a function of proximity². 
+
+**Predictors:** <br>
+- Main effect of proximity² (H7a)  <br>
+- Interaction between proximity and age (H7b). <br>
+- Interaction between proximity and MDD status (H7c).  <br>
+- Covariate: RT <br>
+**ROI:** <br>
+- AI: sphere AI
+- IPL: sphere IPL
+```{r H7, warning=F, message=F, cache=F}
+# H7a: proximity^2 on AI activation
+AI <- lmer(data = data.clean, dm_AI ~ I(proximityValue^2) + groupCode + Age + choiceRT + (I(proximityValue^2) | subID))
+summary(AI) # higher the proximity^2 (easier the choice), higher the activation in AI
+
+# H7a: proximity^2 on IPL activation
+IPL <- lmer(data = data.clean, dm_IPL ~ I(proximityValue^2) + groupCode + Age + choiceRT + (I(proximityValue^2) | subID))
+summary(IPL) # higher the proximity^2 (easier the choice), higher the activation in IPL
+
+# H7b: Age interaction on AI
+AI.age <- lmer(data = data.clean, dm_AI ~ I(proximityValue^2)*Age + groupCode + (I(proximityValue^2) | subID))
+summary(AI.age) #NS
+# H7b: Age interaction on IPL
+IPL.age <- lmer(data = data.clean, dm_IPL ~ I(proximityValue^2)*Age + groupCode + (I(proximityValue^2) | subID))
+summary(IPL.age) #NS
+
+# H7c: MDD interaction on AI
+AI.MDD <- lmer(data = data.clean, dm_AI ~ I(proximityValue^2)*groupCode + Age + (I(proximityValue^2) | subID))
+summary(AI.MDD) #no interaction
+# H7c: MDD interaction on IPL
+IPL.MDD <- lmer(data = data.clean, dm_IPL ~ I(proximityValue^2)*groupCode + Age + (I(proximityValue^2) | subID))
+summary(IPL.MDD) #no interaction
+
+#Exploratory: MDD & Age interaction
+AI.age.MDD <- lmer(data = data.clean, dm_AI ~ I(proximityValue^2)*groupCode*Age + (I(proximityValue^2) | subID))
+summary(AI.age.MDD) #significant three way interaction
+
+IPL.age.MDD <- lmer(data = data.clean, dm_IPL ~ I(proximityValue^2)*groupCode*Age + (I(proximityValue^2) | subID))
+summary(IPL.age.MDD) #NS
+
+age_mean <- mean(data.clean$Age, na.rm = TRUE)
+age_sd <- sd(data.clean$Age, na.rm = TRUE)
+
+# Generate the effect using Age at ±1 SD
+ef <- effects::effect("I(proximityValue^2)*groupCode*Age", 
+             mod = AI.age.MDD, 
+             xlevels = list(Age = c(age_mean - age_sd, age_mean, age_mean + age_sd), groupCode =c(0,1) ))
+
+# Convert to dataframe
+efdata <- as.data.frame(ef)
+efdata$groupCode <- as.factor(efdata$groupCode)
+
+# Convert Age values into factor labels
+efdata$Age <- factor(efdata$Age, 
+                     levels = c(age_mean - age_sd, age_mean, age_mean + age_sd), 
+                     labels = c("Low Age (-1 SD)", "Mean Age", "High Age (+1 SD)"))
+
+# Plot the three-way interaction
+ggplot(efdata, aes(x = I(proximityValue^2), y = fit, color = groupCode, group = groupCode)) + 
+    geom_line(size = 1.2) +
+    geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = groupCode), alpha = 0.3) + 
+    labs(x = "Proximity^2", y = "AI activation", 
+         color = "groupCode", fill = "groupCode") +
+    theme_classic() +
+    facet_wrap(~ Age)
 ```
