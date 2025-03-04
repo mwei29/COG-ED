@@ -17,14 +17,14 @@ Started by MW in 12/10/24 to analyze MARCER COGED full behavioral data. The last
 ```{r setup, echo=FALSE, warning=FALSE, message=FALSE}
 rm(list=ls());
 #Packages
-library(boxr); library(lme4); library(knitr); library(kableExtra); library(correlation); library(RColorBrewer); library(tidyverse);library(boxr);library(readxl);library(psych); library(easystats); library(insight)
-source("summarySEwithin2.R")
-# box_auth(); 
+library(lme4); library(kableExtra); library(correlation); library(RColorBrewer); library(tidyverse);library(readxl);library(psych); library(easystats)
+source("C:/Users/Emotion/Documents/GIT-MW/COG-ED/Tools/summarySEwithin2.R")
+# box_auth(); library(boxr); 
 
-in.path <- "C:/Users/Emotion/Documents/GIT-MW/COG-ED/Prep/SubjectSet/" 
-out.path <-"C:/Users/Emotion/Documents/GIT-MW/COG-ED/Analysis and Knitr/COGED behavioral/" 
+in.path <- "C:/Users/Emotion/Documents/GIT-MW/COG-ED/Data/" 
+out.path <-"C:/Users/Emotion/Documents/GIT-MW/COG-ED/Analysis/COGED behavioral/" 
 dir.desc <- "20250114";  
-sub.tbl <- read.table(paste0(in.path, dir.desc, "_subjectSet.txt"), stringsAsFactors=FALSE); #Made from GIT/MARCER/weie/COGED/defineSubjectSet.R
+sub.tbl <- read.table(paste0(in.path, "SubjectSet/", dir.desc, "_subjectSet.txt"), stringsAsFactors=FALSE); #Made from GIT/MARCER/weie/COGED/defineSubjectSet.R
 sub.ids <- sub.tbl$sub.id[which(sub.tbl$COGED_CatchNonCatch == TRUE)]
 length(sub.ids) # Number of participants included in coged fMRI analysis
 sub.ids.lab <- c("3051", "3085", "3093", "3097", "3117", "3139", "3204", "3218", "3235", "3347", 
@@ -90,12 +90,15 @@ length(sub.ids.lab)
 # # Flip proximity value because we are following JC's JNeuro paper
 # coged.fmri$proximityValue<--coged.fmri$proximityValue
 # write.csv(coged.fmri, paste0("coged.fmri.csv"), row.names = FALSE)
-demo <- read.csv("demo.csv")
-coged.lab<- read.csv("coged.lab.csv")
-coged.fmri<- read.csv("coged.fmri.csv")
-NASA <- read.csv("NASA.csv")
-nback.lab <- read.csv("nback.lab.csv")
-nback.fmri <- read.csv("nback.fmri.csv")
+demo <- read.csv(paste0(in.path, "BehaviorData/demo.csv"))
+coged.lab<- read.csv(paste0(in.path, "BehaviorData/coged.lab.csv"))
+coged.fmri<- read.csv(paste0(in.path, "BehaviorData/coged.fmri.csv"))
+NASA <- read.csv(paste0(in.path, "BehaviorData/NASA.csv"))
+nback.lab <- read.csv(paste0(in.path, "BehaviorData/nback.lab.csv"))
+nback.fmri <- read.csv(paste0(in.path, "BehaviorData/nback.fmri.csv"))
+
+ADI <- read.csv("C:/Users/Emotion/Downloads/MO/MO_2022_ADI_9 Digit Zip Code_v4_0_1.csv")
+
 ```
 
 ## Demographic 
@@ -282,6 +285,14 @@ coged.lab$Age <- as.numeric(as.character(coged.lab$Age))
 coged.SV <- coged.lab %>% group_by(subID, task, Age.Group, MDD_Status) %>%
 summarise(meanSV = mean(SV))
 coged.SV
+
+highSV <- coged.SV[coged.SV$meanSV > 0.8 & coged.SV$task == "Purple", ,drop = FALSE]
+highSV.sid <- unique(highSV$subID)
+highSV.demo <- demo[demo$sub.id %in% highSV.sid,]
+highSV.demo %>%
+  count(Race,Age.Group) %>%
+  mutate(Prop = n / sum(n))
+
 
 #testing for differences across task & condition (red, blue, purple). As predicted, SV is discounted with task difficulty
 SV <- lmer(data = coged.lab, SV ~ taskCode + (1 | subID))
@@ -685,6 +696,7 @@ coged.lab.SV <- coged.lab %>%
 #H1a
 SV <- lmer(data = coged.lab.SV, SV ~ taskCode + Age + groupCode + acc + (1 | subID))
 summary(SV)
+
 #H1b
 SV.age <- lmer(data = coged.lab.SV, SV ~ taskCode*Age + groupCode + acc + (1 | subID))
 summary(SV.age)
@@ -747,6 +759,40 @@ ggplot(efdata, aes(x = taskCode, y = fit, color = groupCode, group = groupCode))
 #SV in relationship to both taskload and reward load
 SV.rew <- lmer(data = coged.lab.SV, SV ~ taskCode + rewardCode + Age + groupCode + acc + (1 | subID))
 summary(SV.rew)
+
+#looking at interaction between MDD & Reward
+SV.rew.MDD <- lmer(data = coged.lab.SV, SV ~ taskCode + rewardCode*groupCode + Age + acc + (1 | subID))
+summary(SV.rew.MDD)
+
+SV.acc.MDD <- lmer(data = coged.lab.SV, SV ~ taskCode + rewardCode + Age + acc*MDD_Status + (1 | subID))
+summary(SV.acc.MDD)
+
+SV.acc.age <- lmer(data = coged.lab.SV, SV ~ taskCode + rewardCode + MDD_Status + acc*Age + (1 | subID))
+summary(SV.acc.age)
+
+ef <- effects::effect(term="acc*MDD_Status", xlevels= list(MDD_Status = c(0,1)), mod=SV.acc.MDD)
+efdata<-as.data.frame(ef) #convert the effects list to a data frame
+efdata$MDD_Status<-as.factor(efdata$MDD_Status)
+ggplot(efdata, aes(x=acc, y=fit, color=MDD_Status,group=MDD_Status)) + 
+    geom_point() + 
+    geom_line(size=1.2) +
+    geom_ribbon(aes(ymin=fit-se, ymax=fit+se, fill=MDD_Status),alpha=0.3) + 
+    labs(x= "N-back Accuracy", y="Subjective Value", color="MDD_Status", fill="MDD_Status") +
+    theme_classic() + theme(text=element_text(size=12)) + 
+    scale_y_continuous(breaks = seq(0, 1, by=0.2), limits=c(0, 0.8)) +
+    scale_x_continuous(breaks = seq(0, 1, by=0.2), limits=c(0, 1))
+
+ef <- effects::effect(term="acc*Age", xlevels= list(Age=c(42.29, 63.85)), mod=SV.acc.age)
+efdata<-as.data.frame(ef) #convert the effects list to a data frame
+efdata$Age<-as.factor(efdata$Age)
+ggplot(efdata, aes(x=acc, y=fit, color=Age,group=Age)) + 
+    geom_point() + 
+    geom_line(size=1.2) +
+    geom_ribbon(aes(ymin=fit-se, ymax=fit+se, fill=Age),alpha=0.3) + 
+    labs(x= "N-back Accuracy", y="Subjective Value", color="Age", fill="Age") +
+    theme_classic() + theme(text=element_text(size=12)) + 
+    scale_y_continuous(breaks = seq(0, 1, by=0.2), limits=c(0, 0.8)) +
+    scale_x_continuous(breaks = seq(0, 1, by=0.2), limits=c(0, 1))
 ```
 
 A linear mixed-effects model examined the effects of **N-back level**, **age (cont.)**, and **MDD status (HC:0, MDD:1)** on **SV**, with **N-back Accuracy** being covariate.
