@@ -17,7 +17,7 @@ Started by MW in 12/10/24 to analyze MARCER COGED full behavioral data. The last
 ```{r setup, echo=FALSE, warning=FALSE, message=FALSE}
 rm(list=ls());
 #Packages
-library(lme4); library(kableExtra); library(correlation); library(RColorBrewer); library(tidyverse);library(readxl);library(psych); library(easystats)
+library(lme4); library(lmerTest); library(kableExtra); library(correlation); library(RColorBrewer); library(tidyverse);library(readxl);library(psych); library(easystats)
 source("C:/Users/Emotion/Documents/GIT-MW/COG-ED/Tools/summarySEwithin2.R")
 # box_auth(); library(boxr); 
 
@@ -126,7 +126,7 @@ demo %>%
   group_by(Age.Bin,MDD_Status) %>%
   summarise(total_count=n()) 
 demo %>% 
-  group_by(Age.Group,MDD_Status,Gender) %>%
+  group_by(Age.Bin,MDD_Status,Gender) %>%
   summarise(total_count=n()) 
 #Race
 demo %>% select(Race) %>%
@@ -685,7 +685,7 @@ Model: multilevel linear model with subjective value (SV) as the dependent varia
 - Interaction between N-back level and age (H1b). <br>
 - Interaction between N-back level and MDD status (MDD vs. HC; H1c).  <br>
 - Covariate: N-back accuracy during familiarization phase
-```{r H1, warning=F, message=F, cache=T}
+```{r H1, warning=F, message=F, cache=F}
 nback.lab.acc <- summarySEwithin2(nback.lab, measurevar = "acc", withinvars = c("level","subID"), idvar = "subID") %>%
   select(c(subID,level, acc, sd, se, ci)) %>%
   arrange(subID) %>%
@@ -824,7 +824,7 @@ Model: Logistic regression predicting choice of the higher-effort option as a fu
 - Main effect of proximity (H2a). <br>
 - Interaction between proximity and age (H2b). <br>
 - Interaction between proximity and MDD status (H2c). <br>
-```{r H2, warning=F, message=F, cache=TRUE}
+```{r H2, warning=F, message=F, cache=F}
 #H2a: as hypothesized: As proximity increases, people are biased to choose the harder option.
 prox.choice <- glmer(data = coged.fmri.clean.prox, choseHard ~ proximityValue + Age + groupCode + (proximityValue|subID), family = "binomial")
 summary(prox.choice)
@@ -921,7 +921,7 @@ Model: Linear mixed-effects model predicting reaction time (RT) with proximity²
 - Main effect of proximity² (H2a). <br>
 - Interaction between proximity² and age (H3b).  <br>
 - Interaction between proximity² and MDD status (H2c). <br>
-```{r H3, warning=F, message=F, cache=TRUE}
+```{r H3, warning=F, message=F, cache=F}
 #H3a: proximity² did not significantly predict RT
 prox.RT <- lmer(data = coged.fmri.clean.prox, choiceRT ~ I(proximityValue^2) + Age + groupCode + (I(proximityValue^2)|subID))
 summary(prox.RT)
