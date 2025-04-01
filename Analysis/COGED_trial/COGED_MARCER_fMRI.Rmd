@@ -16,7 +16,7 @@ output:
 
 ```{r setup, warning=FALSE, message=FALSE}
 rm(list=ls())
-library(lme4); library(tidyverse)
+library(lme4); library(tidyverse); library(lmerTest)
 fMRI.path <- "C:/Users/Emotion/Documents/GIT-MW/COG-ED/Data/TrialData/"
 demo <- read.csv("C:/Users/Emotion/Documents/GIT-MW/COG-ED/Data/BehaviorData/demo.csv")
 # Clean up model
@@ -40,6 +40,26 @@ data.clean$groupCode <- as.numeric(as.character(data.clean$groupCode))
 data.clean$subID <-  as.factor(data.clean$subID)
 
 data.clean <- data.clean %>%
+  mutate(Age_centered = scale(Age, center = TRUE, scale = FALSE))
+
+data.schaefer <-  read.delim(paste0(fMRI.path,"COGED_trialwise_data_schaefer_5-7.txt"), header = TRUE)
+data.schaefer <- data.schaefer %>%
+  left_join(demo %>% select(sub.id, MDD_Status, Age), by = c("subID" = "sub.id")) %>%
+  filter(choice !=9) %>%
+  mutate (choiceCode = if_else((choice == 1), 0, 1), #1 is choosing easy, 2 is choosing hard. So after recoding, 0 is easy, 1 is hard. As proximity goes higher, people should be more biased to choose the harder option.
+          loadCode = factor(hardTask, levels = c(1,2,3), labels = c(-1,0,1)),
+          rewardCode = factor(rewardAmount, levels = c(2,3,4), labels = c(-1,0,1)),
+          groupCode = factor (MDD_Status, levels = c("HC", "MDD"), labels = c(0,1)),
+          Age_centered = scale(Age, center = TRUE, scale = FALSE),
+          eval_OFC = eval_116,
+          eval_vlPFC = rowMeans(select(., eval_166, eval_340), na.rm = TRUE))
+data.schaefer$loadCode <- as.numeric(as.character(data.schaefer$loadCode))
+data.schaefer$rewardCode <- as.numeric(as.character(data.schaefer$rewardCode))
+data.schaefer$Age <- as.numeric(as.character(data.schaefer$Age))
+data.schaefer$groupCode <- as.numeric(as.character(data.schaefer$groupCode))
+data.schaefer$subID <-  as.factor(data.schaefer$subID)
+
+data.schaefer <- data.schaefer %>%
   mutate(Age_centered = scale(Age, center = TRUE, scale = FALSE))
 ```
 
@@ -77,7 +97,7 @@ Model:  Generalized linear mixed-effects model with neural activation in vmPFC, 
 **ROI:** <br>
 - vmPFC: sphere vmPFC_right_LG, vmPFC_left_LG, vmPFC_right_Bartra
 - VS: sphere VS_left, VS_right
-- vlPFC & OFC: not sure how to define yet; we eyeballed it in our whole brain schaefer 400 knitr
+- vlPFC & OFC: not sure how to define yet; we eyeballed it in our whole brain schaefer 400 knitr； currently for OFC, I'm using 116; for vlPFC, I'm using 166 and 340.
 ```{r H4, warning=F, message=F, cache=F}
 # H4a: task load and reward load on vmPFC
 vmPFC <- lmer(data = data.clean, eval_vmPFC ~ rewardCode + loadCode + groupCode + Age + (1 | subID))
@@ -85,30 +105,52 @@ summary(vmPFC) # task load and reward load doesn't predict vmPFC activity during
 # H4a: task load and reward load on VS
 VS <- lmer(data = data.clean, eval_VS ~ rewardCode + loadCode + groupCode + Age + (1 | subID))
 summary(VS) # task load and reward load doesn't predict VS activity during evaluation phase, but age & depression predict higher activation
+# H4a: task load and reward load on OFC
+OFC <- lmer(data = data.schaefer, eval_OFC ~ rewardCode + loadCode + groupCode + Age + (1 | subID))
+summary(OFC) # N.S.
+vlPFC <- lmer(data = data.schaefer, eval_vlPFC ~ rewardCode + loadCode + groupCode + Age + (1 | subID))
+summary(vlPFC) # N.S.
+
 
 # H4b: Age interaction with task
 vmPFC.age.task <- lmer(data = data.clean, eval_vmPFC ~ rewardCode + loadCode*Age + groupCode + (1 | subID))
 summary(vmPFC.age.task) #no interaction
 VS.age.task <- lmer(data = data.clean, eval_VS ~ rewardCode + loadCode*Age + groupCode + (1 | subID))
 summary(VS.age.task) #no interaction
+OFC.age.task <- lmer(data = data.schaefer, eval_OFC ~ rewardCode + loadCode*Age + groupCode + (1 | subID))
+summary(OFC.age.task) #Age weaken
+vlPFC.age.task <- lmer(data = data.schaefer, eval_vlPFC ~ rewardCode + loadCode*Age + groupCode + (1 | subID))
+summary(vlPFC.age.task) #Age weaken
 
 # H4b: Age interaction with reward
 vmPFC.age.reward <- lmer(data = data.clean, eval_vmPFC ~ rewardCode*Age + loadCode + groupCode + (1 | subID))
 summary(vmPFC.age.reward) #no interaction
 VS.age.reward <- lmer(data = data.clean, eval_VS ~ rewardCode*Age + loadCode + groupCode + (1 | subID))
 summary(VS.age.reward) #reward is associated with greater VS activation; older age is associated with greater VS activation;positive effect of reward on VS activation decreases with age.
+OFC.age.reward <- lmer(data = data.schaefer, eval_OFC ~ rewardCode*Age + loadCode + groupCode + (1 | subID))
+summary(OFC.age.reward) #NS
+vlPFC.age.reward <- lmer(data = data.schaefer, eval_vlPFC ~ rewardCode*Age + loadCode + groupCode + (1 | subID))
+summary(vlPFC.age.reward) #Age weakens
 
 # H4c: MDD interaction with task
 vmPFC.MDD.task <- lmer(data = data.clean, eval_vmPFC ~ rewardCode + loadCode*groupCode + Age + (1 | subID))
 summary(vmPFC.MDD.task) #no interaction
 VS.MDD.task <- lmer(data = data.clean, eval_VS ~ rewardCode + loadCode*groupCode + Age + (1 | subID))
 summary(VS.MDD.task) #no interaction
+OFC.MDD.task <- lmer(data = data.schaefer, eval_OFC ~ rewardCode + loadCode*groupCode + Age + (1 | subID))
+summary(OFC.MDD.task) #no interaction
+vlPFC.MDD.task <- lmer(data = data.schaefer, eval_vlPFC ~ rewardCode + loadCode*groupCode + Age + (1 | subID))
+summary(vlPFC.MDD.task) #no interaction
 
 # H4c: MDD interaction with reward
 vmPFC.MDD.reward <- lmer(data = data.clean, eval_vmPFC ~ rewardCode*groupCode + loadCode + Age + (1 | subID))
 summary(vmPFC.MDD.reward) #no interaction
 VS.MDD.reward <- lmer(data = data.clean, eval_VS ~ rewardCode*groupCode + loadCode + Age + (1 | subID))
 summary(VS.MDD.reward) #no interaction
+OFC.MDD.reward <- lmer(data = data.schaefer, eval_OFC ~ rewardCode*groupCode + loadCode + Age + (1 | subID))
+summary(OFC.MDD.reward) #no interaction
+vlPFC.MDD.reward <- lmer(data = data.schaefer, eval_vlPFC ~ rewardCode*groupCode + loadCode + Age + (1 | subID))
+summary(vlPFC.MDD.reward) #no interaction
 
 #Exploratory: MDD and age interaction
 vmPFC.age.MDD.task <- lmer(data = data.clean, eval_vmPFC ~ loadCode*groupCode*Age + rewardCode + (1 | subID))
@@ -119,6 +161,15 @@ VS.age.MDD.task <- lmer(data = data.clean, eval_VS ~ loadCode*groupCode*Age + re
 summary(VS.age.MDD.task)#NS
 VS.age.MDD.reward <- lmer(data = data.clean, eval_VS ~ rewardCode*groupCode*Age + loadCode + (1 | subID))
 summary(VS.age.MDD.reward)#NS
+
+OFC.age.MDD.task <- lmer(data = data.schaefer, eval_OFC ~ loadCode*groupCode*Age + rewardCode + (1 | subID))
+summary(OFC.age.MDD.task)#NS
+OFC.age.MDD.reward <- lmer(data = data.schaefer, eval_OFC ~ rewardCode*groupCode*Age + loadCode + (1 | subID))
+summary(OFC.age.MDD.task)#NS
+vlPFC.age.MDD.task <- lmer(data = data.schaefer, eval_vlPFC ~ loadCode*groupCode*Age + rewardCode + (1 | subID))
+summary(vlPFC.age.MDD.task)#NS
+vlPFC.age.MDD.reward <- lmer(data = data.schaefer, eval_vlPFC ~ rewardCode*groupCode*Age + loadCode + (1 | subID))
+summary(vlPFC.age.MDD.reward)#NS
 ```
 
 ## H5: Proximity Effects on Neural Activities 
