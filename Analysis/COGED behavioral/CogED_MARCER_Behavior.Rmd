@@ -14,7 +14,7 @@ output:
 #### N.b. all error bars in this summary are 95% CIs
 Started by MW in 12/10/24 to analyze MARCER COGED full behavioral data. The last version was CogED_MARCER_Behavior_2023.Rmd made by MW, adapted from JC's COGED PETMR project, for MW's SSM & ADAA projects in 2023.
 
-```{r setup, echo=FALSE, warning=FALSE, message=FALSE}
+```{r setup, echo=FALSE, warning=FALSE, message=FALSE, cache=F}
 rm(list=ls());
 #Packages
 library(lme4); library(lmerTest); library(kableExtra); library(correlation); library(RColorBrewer); library(tidyverse);library(readxl);library(psych); library(easystats)
@@ -109,6 +109,8 @@ demo <- demo %>%
 demo$ageCode <- as.numeric(as.character(demo$ageCode))
 demo$groupCode <- as.numeric(as.character(demo$groupCode))
 demo$Age_centered <- as.numeric(as.character(demo$Age_centered))
+
+demo.scan <- demo[demo$sub.id %in% sub.ids,]
 ```
 
 ## Demographic 
@@ -151,8 +153,6 @@ demo %>% select(Ethnicity) %>%
 
 ### scan
 ```{r Demo_scan, echo=F, warning=FALSE, message=FALSE,cache=TRUE}
-# BREAKDOWN of the scan data
-demo.scan <- demo[demo$sub.id %in% sub.ids,]
 #Age
 demo.scan %>%
   group_by(Age.Group) %>%
@@ -197,11 +197,15 @@ nback.lab <- left_join(nback.lab, demo %>%
   select(subID, level, kind, acc, RT, groupCode, Age.Group, Age_centered, MDD_Status) %>% 
   mutate(level = factor(level, levels = c(1,2,3,4), labels = c("Black","Red","Blue","Purple")),
          taskCode = factor(level, levels =  c("Black","Red","Blue","Purple"), labels = c(0,1,2,3)),
-         zRT = scale(RT),
          type = factor(kind, levels = c(-1,0,1), labels = c("lure","non-target","target")),
          hit = if_else((kind == 1 & acc == 1), 1, 0),
          FA = if_else((kind == 0 & acc == 0), 1, 0)) %>%
-  filter(type != "lure")
+  filter(type != "lure") %>%
+  group_by(subID) %>%
+  mutate(RT_pm = mean(RT,na.rm=TRUE),
+         RT_sd = sd(RT,na.rm=TRUE)) %>%
+  ungroup() %>%
+  mutate(zRT = (RT-RT_pm)/RT_sd)
 nback.lab$taskCode <- as.numeric(as.character(nback.lab$taskCode))
 
 #Accuracy - without group; as expected, accuracy goes down as task becomes harder
@@ -406,7 +410,7 @@ highSV.demo %>%
 SV <- lmer(data = coged.lab, SV ~ taskCode + (1 | subID))
 summary(SV)
 
-SV.group <- lmer(data = coged.lab, SV ~ taskCode + ageCode + groupCode + (1 | subID))
+SV.group <- lmer(data = coged.lab, SV ~ taskCode + Age_centered + groupCode + (1 | subID))
 summary(SV.group)
 ```
 
@@ -573,14 +577,18 @@ p.frust
 #summarizing n-back task performance in the scanner
 nback.fmri <- nback.fmri %>% filter(resp != 9) %>%select(subID, level, kind, acc, RT) %>%
   mutate(level = factor(level, levels = c(1,2,3,4), labels = c("Black","Red","Blue","Purple")),
-        taskCode = factor(level, levels =  c("Black","Red","Blue","Purple"), labels = c(0,1,2,3)),
+         taskCode = factor(level, levels =  c("Black","Red","Blue","Purple"), labels = c(0,1,2,3)),
          type = factor(kind, levels = c(-1,0,1), labels = c("lure","non-target","target")),
          hit = if_else((kind == 1 & acc == 1), 1, 0),
-         FA = if_else((kind == 0 & acc == 0), 1, 0),
-        zRT = scale(RT)) %>%
+         FA = if_else((kind == 0 & acc == 0), 1, 0)) %>%
   filter(type != "lure") %>%
-  left_join(demo.scan %>% select(sub.id, MDD_Status, Age.Group, Age_centered,groupCode), 
-            by = c("subID" = "sub.id"))
+  left_join(demo.scan %>% select(sub.id, MDD_Status, Age.Group, Age_centered, groupCode), 
+            by = c("subID" = "sub.id")) %>%
+  group_by(subID) %>%
+  mutate(RT_pm = mean(RT,na.rm=TRUE),
+         RT_sd = sd(RT,na.rm=TRUE)) %>%
+  ungroup() %>%
+  mutate(zRT = (RT-RT_pm)/RT_sd)
 nback.fmri$taskCode <- as.numeric(as.character(nback.fmri$taskCode))
 
 #Accuracy - without group; as expected, accuracy goes down as task becomes harder
@@ -751,7 +759,7 @@ p.nback.fmri.RT.group <- ggplot(nback.fmri.RT.sum.group, aes(x=level, y=RT, fill
   facet_grid(MDD_Status ~ Age.Group) + scale_fill_brewer(palette = "Paired",  name="Trial Type", labels=c("Non-Target","Target"))
 p.nback.fmri.RT.group
 
-nback.fmri.performance <- nback.fmri.clean %>% group_by(subID, level) %>%
+nback.fmri.performance <- nback.fmri %>% group_by(subID, level) %>%
   summarise(hitRate = (sum(hit)/16), FARate = sum(FA)/48, mRT = mean(RT)) %>%
   rename(task = "level")
 nback.fmri.performance
@@ -772,7 +780,12 @@ coged.fmri <- coged.fmri %>% filter(trial > 45) %>% filter(choice != 9) %>%
          bias = if_else((biasType == "high" & choseHard == 1 | biasType == "low" & choseHard == 0), "pro", "anti"))%>%
   left_join(demo %>% select(sub.id, MDD_Status, Age.Group, Age_centered, groupCode), 
             by = c("subID" = "sub.id")) %>%
-  mutate(trialCode = factor (trialType, levels = c("low-catch","low-biased","high-biased","high-catch"),labels = c(0,1,2,3)))
+  mutate(trialCode = factor (trialType, levels = c("low-catch","low-biased","high-biased","high-catch"),labels = c(0,1,2,3))) %>%
+    group_by(subID) %>%
+  mutate(RT_pm = mean(choiceRT,na.rm=TRUE),
+         RT_sd = sd(choiceRT,na.rm=TRUE)) %>%
+  ungroup() %>%
+  mutate(zRT = (choiceRT-RT_pm)/RT_sd)
 coged.fmri$loadCode <- as.numeric(as.character(coged.fmri$loadCode))
 coged.fmri$rewardCode <- as.numeric(as.character(coged.fmri$rewardCode))
 coged.fmri$trialCode <- as.numeric(as.character(coged.fmri$trialCode))
@@ -831,17 +844,18 @@ summary(coged.hardChoice.group2)
 coged.hardChoice.group3 <- glmer(data = coged.fmri, choseHard ~ trialCode*Age_centered*groupCode + (1|subID),
                                family = binomial(link = "logit"),control = glmerControl(optimizer = "bobyqa"))
 summary(coged.hardChoice.group3)
-#####4/16/25 this is as much as I have updated the code
+
 
 #Predict choice based on proximity
 #As expected, higher proximity bias people to choose the harder option
 coged.fmri.prox <- coged.fmri %>%
   mutate(Run = if_else(trial < 82, 1, if_else(trial > 117, 3, 2)),
          Trial = if_else(Run == 1, trial-45, if_else(Run == 2, trial-81, (trial-117))))%>%
-  select(subID, Trial, Run, choice, proximityValue, choseHard,loadCode, rewardCode, ageCode, groupCode, choiceRT,Age,MDD_Status) %>% as_tibble()
+  select(subID, Trial, Run, choice, proximityValue, choseHard,loadCode, rewardCode, Age_centered, groupCode, zRT, choiceRT,MDD_Status) %>% as_tibble()
 coged.fmri.prox$subID <- as.factor(coged.fmri.prox$subID)
 
 prox.choice <- glmer(data = coged.fmri.prox, choseHard ~ proximityValue + rewardCode + loadCode + (proximityValue|subID), family = "binomial")
+summary(prox.choice)
 
 prox.choice.plot <- get_datagrid(prox.choice, by = c("proximityValue","subID"), preserve_range = TRUE)
 preds <- estimate_relation(prox.choice, include_random = T, data = prox.choice.plot)
@@ -938,7 +952,7 @@ summary(SV)
 SV.age <- lmer(data = coged.lab.SV, SV ~ taskCode*Age_centered + groupCode + acc + (1 | subID))
 summary(SV.age)
 
-ef <- effects::effect(term="taskCode*Age_centered", xlevels= list(Age_centered=c(42.29, 63.85)), mod=SV.age)
+ef <- effects::effect(term="taskCode*Age_centered", xlevels= list(Age_centered=c(-1, 1)), mod=SV.age)
 efdata<-as.data.frame(ef) #convert the effects list to a data frame
 efdata$Age<-as.factor(efdata$Age)
 ggplot(efdata, aes(x=taskCode, y=fit, color=Age,group=Age)) + 
@@ -950,7 +964,7 @@ ggplot(efdata, aes(x=taskCode, y=fit, color=Age,group=Age)) +
     scale_y_continuous(breaks = seq(0, 1, by=0.1), limits=c(0.3,0.8)) +
     scale_x_continuous(breaks = seq(-1, 1, by=0.5), limits=c(-1, 1))
 #H1c
-SV.MDD <- lmer(data = coged.lab.SV, SV ~ taskCode*groupCode + Age + acc + (1 | subID))
+SV.MDD <- lmer(data = coged.lab.SV, SV ~ taskCode*groupCode + Age_centered + acc + (1 | subID))
 summary(SV.MDD)
 ef <- effects::effect(term="taskCode*groupCode", xlevels= list(groupCode = c(0,1)), mod=SV.MDD)
 efdata<-as.data.frame(ef) #convert the effects list to a data frame
@@ -965,47 +979,62 @@ ggplot(efdata, aes(x=taskCode, y=fit, color=groupCode,group=groupCode)) +
     scale_x_continuous(breaks = seq(-1, 1, by=0.5), limits=c(-1, 1))
 
 #Exploratory: age & MDD interaction. 
-SV.age.MDD <- lmer(data = coged.lab.SV, SV ~ taskCode*Age*groupCode + acc + (1 | subID))
+SV.age.MDD <- lmer(data = coged.lab.SV, SV ~ taskCode*Age_centered*groupCode + acc + (1 | subID))
 summary(SV.age.MDD)
-
-age_mean <- mean(coged.lab.SV$Age, na.rm = TRUE)
-age_sd <- sd(coged.lab.SV$Age, na.rm = TRUE)
-
+AIC(SV.MDD, SV.age.MDD)
+BIC(SV.MDD, SV.age.MDD)
+AIC(SV.age, SV.age.MDD)
+BIC(SV.age, SV.age.MDD)
 # Generate the effect using Age at ±1 SD
-ef <- effects::effect("taskCode*Age*groupCode", 
+ef <- effects::effect("taskCode*Age_centered*groupCode", 
              mod = SV.age.MDD, 
-             xlevels = list(Age = c(age_mean - age_sd, age_mean, age_mean + age_sd), groupCode =c(0,1) ))
+             xlevels = list(Age_centered = c(-1, 0, 1), groupCode =c(0,1) ))
 
 # Convert to dataframe
 efdata <- as.data.frame(ef)
 efdata$groupCode <- as.factor(efdata$groupCode)
 
 # Convert Age values into factor labels
-efdata$Age <- factor(efdata$Age, 
-                     levels = c(age_mean - age_sd, age_mean, age_mean + age_sd), 
+efdata$Age_centered <- factor(efdata$Age_centered, 
+                     levels = c(-1, 0, 1), 
                      labels = c("Low Age (-1 SD)", "Mean Age", "High Age (+1 SD)"))
 
 # Plot the three-way interaction
-ggplot(efdata, aes(x = taskCode, y = fit, color = groupCode, group = groupCode)) + 
+ggplot(efdata, aes(x = taskCode, y = fit, color = factor(groupCode, levels = c(0, 1), labels = c("HC", "MDD")), group = groupCode)) + 
     geom_line(size = 1.2) +
-    geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = groupCode), alpha = 0.3) + 
+    geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = factor(groupCode, levels = c(0, 1), labels = c("HC", "MDD"))), alpha = 0.3) + 
     labs(x = "N-back Difficulty", y = "Subjective Value", 
-         color = "groupCode", fill = "groupCode") +
+         color = "MDD Status", fill = "MDD Status") +
     theme_classic() +
-    facet_wrap(~ Age)
+    facet_wrap(~ Age_centered)
+
+ggplot(efdata, aes(x = taskCode, y = fit, 
+                   color = Age_centered, 
+                   group = Age_centered)) + 
+  geom_line(size = 1.2) +
+  geom_ribbon(aes(ymin = fit - se, ymax = fit + se, 
+                  fill = Age_centered), 
+              alpha = 0.3) + 
+  labs(x = "N-back Difficulty", 
+       y = "Subjective Value", 
+       color = "Age", 
+       fill = "Age") +
+  theme_classic() +
+  facet_wrap(~ factor(groupCode, levels = c(0, 1), labels = c("HC", "MDD")))
+
 
 #SV in relationship to both taskload and reward load
-SV.rew <- lmer(data = coged.lab.SV, SV ~ taskCode + rewardCode + Age + groupCode + acc + (1 | subID))
+SV.rew <- lmer(data = coged.lab.SV, SV ~ taskCode + rewardCode + Age_centered + groupCode + acc + (1 | subID))
 summary(SV.rew)
 
 #looking at interaction between MDD & Reward
-SV.rew.MDD <- lmer(data = coged.lab.SV, SV ~ taskCode + rewardCode*groupCode + Age + acc + (1 | subID))
+SV.rew.MDD <- lmer(data = coged.lab.SV, SV ~ taskCode + rewardCode*groupCode + Age_centered + acc + (1 | subID))
 summary(SV.rew.MDD)
 
-SV.acc.MDD <- lmer(data = coged.lab.SV, SV ~ taskCode + rewardCode + Age + acc*MDD_Status + (1 | subID))
+SV.acc.MDD <- lmer(data = coged.lab.SV, SV ~ taskCode + rewardCode + Age_centered + acc*MDD_Status + (1 | subID))
 summary(SV.acc.MDD)
 
-SV.acc.age <- lmer(data = coged.lab.SV, SV ~ taskCode + rewardCode + MDD_Status + acc*Age + (1 | subID))
+SV.acc.age <- lmer(data = coged.lab.SV, SV ~ taskCode + rewardCode + MDD_Status + acc*Age_centered + (1 | subID))
 summary(SV.acc.age)
 
 ef <- effects::effect(term="acc*MDD_Status", xlevels= list(MDD_Status = c(0,1)), mod=SV.acc.MDD)
@@ -1020,13 +1049,15 @@ ggplot(efdata, aes(x=acc, y=fit, color=MDD_Status,group=MDD_Status)) +
     scale_y_continuous(breaks = seq(0, 1, by=0.2), limits=c(0, 0.8)) +
     scale_x_continuous(breaks = seq(0, 1, by=0.2), limits=c(0, 1))
 
-ef <- effects::effect(term="acc*Age", xlevels= list(Age=c(42.29, 63.85)), mod=SV.acc.age)
+ef <- effects::effect(term="acc*Age_centered", xlevels= list(Age_centered=c(-1, 0, 1)), mod=SV.acc.age)
 efdata<-as.data.frame(ef) #convert the effects list to a data frame
-efdata$Age<-as.factor(efdata$Age)
-ggplot(efdata, aes(x=acc, y=fit, color=Age,group=Age)) + 
+efdata$Age_centered <- factor(efdata$Age_centered, 
+                     levels = c(-1, 0, 1), 
+                     labels = c("Low Age (-1 SD)", "Mean Age", "High Age (+1 SD)"))
+ggplot(efdata, aes(x=acc, y=fit, color=Age_centered,group=Age_centered)) + 
     geom_point() + 
     geom_line(size=1.2) +
-    geom_ribbon(aes(ymin=fit-se, ymax=fit+se, fill=Age),alpha=0.3) + 
+    geom_ribbon(aes(ymin=fit-se, ymax=fit+se, fill=Age_centered),alpha=0.3) + 
     labs(x= "N-back Accuracy", y="Subjective Value", color="Age", fill="Age") +
     theme_classic() + theme(text=element_text(size=12)) + 
     scale_y_continuous(breaks = seq(0, 1, by=0.2), limits=c(0, 0.8)) +
@@ -1064,14 +1095,17 @@ Model: Logistic regression predicting choice of the higher-effort option as a fu
 - Interaction between proximity and MDD status (H2c). <br>
 ```{r H2, warning=F, message=F, cache=F}
 #H2a: as hypothesized: As proximity increases, people are biased to choose the harder option.
-prox.choice <- glmer(data = coged.fmri.prox, choseHard ~ proximityValue + Age + groupCode + (proximityValue|subID), family = "binomial")
+prox.choice <- glmer(data = coged.fmri.prox, choseHard ~ proximityValue + Age_centered + groupCode + (proximityValue|subID), family = "binomial")
 summary(prox.choice)
+prox.choice1 <- glmer(data = coged.fmri.prox, choseHard ~ proximityValue+ rewardCode + loadCode + Age_centered + groupCode + (proximityValue|subID), family = "binomial")
+summary(prox.choice1)
 
-prox.choice.plot <- get_datagrid(prox.choice, by = c("proximityValue","subID"), preserve_range = TRUE)
-preds <- estimate_relation(prox.choice, include_random = T, data = prox.choice.plot)
 
-prox.choice.plot.fixed <- get_datagrid(prox.choice, by = c("proximityValue"), preserve_range = TRUE)
-fixed_pred <- estimate_relation(prox.choice, at = "proximityValue", data = prox.choice.plot.fixed)
+prox.choice.plot <- get_datagrid(prox.choice1, by = c("proximityValue","subID"), preserve_range = TRUE)
+preds <- estimate_relation(prox.choice1, include_random = T, data = prox.choice.plot)
+
+prox.choice.plot.fixed <- get_datagrid(prox.choice1, by = c("proximityValue"), preserve_range = TRUE)
+fixed_pred <- estimate_relation(prox.choice1, at = "proximityValue", data = prox.choice.plot.fixed)
 fig1 <- ggplot(fixed_pred, aes(x=proximityValue, y=Predicted)) + 
   geom_ribbon(data = fixed_pred, aes(x = proximityValue, ymin = CI_low, ymax = CI_high), alpha = 0.5) +
   geom_line(data = fixed_pred, aes(x = proximityValue, y = Predicted), linewidth = 2) +
@@ -1081,51 +1115,56 @@ fig.pt <- fig1 + guides(colour=FALSE) + geom_hline(yintercept = 0.5, linetype = 
 fig.pt
 
 preds.group <- preds %>%
-  left_join(demo.scan %>% select(sub.id, MDD_Status, Age.Group), by = c("subID" = "sub.id")) %>%
-  mutate(group =  factor(paste(Age.Group, MDD_Status, sep = "_")))
+  left_join(demo.scan %>% select(sub.id, MDD_Status, Age.Group), by = c("subID" = "sub.id"))
+
 # Compute group-level predictions
 preds.agg <- preds.group %>%
-  group_by(proximityValue, group) %>%
+  group_by(proximityValue, MDD_Status, Age.Group) %>%
   summarise(Predicted = mean(Predicted, na.rm = TRUE),
             CI_low = mean(CI_low, na.rm = TRUE),
             CI_high = mean(CI_high, na.rm = TRUE)) %>%
   ungroup()
 
-# Generate a smoothed logistic curve for each group
-fig.group <- ggplot(preds.agg, aes(x = proximityValue, y = Predicted, color = group)) + 
-  geom_ribbon(aes(ymin = CI_low, ymax = CI_high, fill = group), alpha = 0.2) +  # Shaded confidence bands
-  geom_line(linewidth = 1.5) +  # Logistic curve per group
+fig.group <- ggplot(preds.agg, aes(x = proximityValue, y = Predicted, 
+                                   color = MDD_Status, linetype = Age.Group)) + 
+  geom_ribbon(aes(ymin = CI_low, ymax = CI_high, fill = MDD_Status), alpha = 0.2) +  
+  geom_line(linewidth = 1.2) +  
   theme_classic() + 
   labs(x = "Relative Subjective Value of High-Effort Option", 
        y = "Probability of Choosing High-Effort Option") +
-  scale_color_manual(values = c("OA_MDD" = "#E63946",  
-                                "MA_MDD" = "#F4A261",  
-                                "OA_HC"  = "#457B9D", 
-                                "MA_HC"  = "#2A9D8F")) +
-  scale_fill_manual(values = c("OA_MDD" = "#E63946",  
-                               "MA_MDD" = "#F4A261",  
-                               "OA_HC"  = "#457B9D", 
-                               "MA_HC"  = "#2A9D8F")) +
-  guides(colour = guide_legend(title = "MDD and Age Status"), 
-         fill = guide_legend(title = "MDD and Age Status")) +
+  scale_color_manual(values = c("MDD" = "#E69F00", "HC" = "#56B4E9")) +
+  scale_fill_manual(values = c("MDD" = "#E69F00", "HC" = "#56B4E9")) +
+  scale_linetype_manual(values = c("MA" = "dashed", "OA" = "solid"),
+  labels = c("MA" = "35–54 y/o", "OA" = "55–74 y/o")) +
+  guides(color = guide_legend(title = "MDD Status"),
+         fill = guide_legend(title = "MDD Status"),
+          linetype = guide_legend(title = "Age Group", 
+                          override.aes = list(linewidth = 1, 
+                                              linetype = c("solid", "dashed")))) +
   geom_hline(yintercept = 0.5, linetype = "dashed") + 
   geom_vline(xintercept = 0, linetype = "dashed") +
-  theme(legend.position = "right") 
+  theme(legend.position = "right", legend.key.width = unit(1, "cm"))
 
 # Display plot
 fig.group
 
 #H2b: Older participants are less influenced by proximityValue when making their choice (p = .0009).
-prox.choice.age <- glmer(data = coged.fmri.prox, choseHard ~ proximityValue*Age + groupCode + (proximityValue|subID), control = glmerControl(optimizer = "bobyqa"), family = "binomial")
+prox.choice.age <- glmer(data = coged.fmri.prox, choseHard ~ proximityValue*Age_centered + groupCode + (proximityValue|subID), control = glmerControl(optimizer = "bobyqa"), family = "binomial")
 summary(prox.choice.age)
+prox.choice.age1 <- glmer(data = coged.fmri.prox, choseHard ~ proximityValue*Age_centered + groupCode + rewardCode + loadCode+ (proximityValue|subID), control = glmerControl(optimizer = "bobyqa"), family = "binomial")
+summary(prox.choice.age1)
 
 #H2c: MDD interaction N.S.
-prox.choice.MDD <- glmer(data = coged.fmri.prox, choseHard ~ proximityValue*groupCode + Age + (proximityValue|subID), control = glmerControl(optimizer = "bobyqa"), family = "binomial")
+prox.choice.MDD <- glmer(data = coged.fmri.prox, choseHard ~ proximityValue*groupCode + Age_centered + (proximityValue|subID), control = glmerControl(optimizer = "bobyqa"), family = "binomial")
 summary(prox.choice.MDD)
+prox.choice.MDD1 <- glmer(data = coged.fmri.prox, choseHard ~ proximityValue*groupCode + Age_centered + rewardCode + loadCode+ (proximityValue|subID), control = glmerControl(optimizer = "bobyqa"), family = "binomial")
+summary(prox.choice.MDD1)
 
 #Exploratory: age & MDD interaction. The original model has a lot of convergence issue, so I centered the age variable. No significant interaction.
 prox.choice.age.MDD <- glmer(data = coged.fmri.prox, choseHard ~ proximityValue*Age_centered*groupCode + (proximityValue|subID), control = glmerControl(optimizer = "bobyqa"), family = "binomial")
 summary(prox.choice.age.MDD)
+prox.choice.age.MDD1 <- glmer(data = coged.fmri.prox, choseHard ~ proximityValue*Age_centered*groupCode + rewardCode + loadCode + (proximityValue|subID), control = glmerControl(optimizer = "bobyqa"), family = "binomial")
+summary(prox.choice.age.MDD1)
 ```
 
 A **generalized linear mixed-effects model** (GLMM) with a **binomial logit link** was used to examine the effects of **proximity value**, **age**, and **MDD status (MDD vs. HC)** on the likelihood of choosing the harder option.
@@ -1159,20 +1198,28 @@ Model: Linear mixed-effects model predicting reaction time (RT) with proximity²
 - Interaction between proximity² and MDD status (H2c). <br>
 ```{r H3, warning=F, message=F, cache=F}
 #H3a: proximity² did not significantly predict RT
-prox.RT <- lmer(data = coged.fmri.prox, choiceRT ~ I(proximityValue^2) + Age + groupCode + (I(proximityValue^2)|subID))
+prox.RT <- lmer(data = coged.fmri.prox, choiceRT ~ I(proximityValue^2) + Age_centered + groupCode + (I(proximityValue^2)|subID))
 summary(prox.RT)
+prox.RT.z <- lmer(data = coged.fmri.prox, zRT ~ I(proximityValue^2) + Age_centered + groupCode + (I(proximityValue^2)|subID))
+summary(prox.RT.z)
 
 #H2b: In older adults, the negative effect of proximity² on RT is weaker.
-prox.RT.age <- lmer(data = coged.fmri.prox, choiceRT ~ I(proximityValue^2)*Age + groupCode + (I(proximityValue^2)|subID))
+prox.RT.age <- lmer(data = coged.fmri.prox, choiceRT ~ I(proximityValue^2)*Age_centered + groupCode + (I(proximityValue^2)|subID))
 summary(prox.RT.age)
+prox.RT.age.z <- lmer(data = coged.fmri.prox, zRT ~ I(proximityValue^2)*Age_centered + groupCode + (I(proximityValue^2)|subID))
+summary(prox.RT.age.z)
 
 #H2c: MDD interaction N.S.
-prox.RT.MDD <- lmer(data = coged.fmri.prox, choiceRT ~ I(proximityValue^2)*groupCode + Age + (I(proximityValue^2)|subID))
+prox.RT.MDD <- lmer(data = coged.fmri.prox, choiceRT ~ I(proximityValue^2)*groupCode + Age_centered + (I(proximityValue^2)|subID))
 summary(prox.RT.MDD)
+prox.RT.MDD.z <- lmer(data = coged.fmri.prox, zRT ~ I(proximityValue^2)*groupCode + Age_centered + (I(proximityValue^2)|subID))
+summary(prox.RT.MDD.z)
 
 #Exploratory: age & MDD interaction. N.S.
-prox.RT.age.MDD <- lmer(data = coged.fmri.prox, choseHard ~ I(proximityValue^2)*Age*groupCode + (I(proximityValue^2)|subID))
+prox.RT.age.MDD <- lmer(data = coged.fmri.prox, choiceRT ~ I(proximityValue^2)*Age_centered*groupCode + (I(proximityValue^2)|subID))
 summary(prox.RT.age.MDD)
+prox.RT.age.MDD.z <- lmer(data = coged.fmri.prox, zRT ~ I(proximityValue^2)*Age_centered*groupCode + (I(proximityValue^2)|subID))
+summary(prox.RT.age.MDD.z)
 ```
 
 A **linear mixed-effects model (LMM)** was fit using **REML estimation** to examine the effects of **proximity²**, **age**, and **MDD status (groupCode: MDD vs. HC)** on **reaction time (RT)**.
