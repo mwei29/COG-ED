@@ -944,6 +944,31 @@ nback.lab.acc <- summarySEwithin2(nback.lab, measurevar = "acc", withinvars = c(
 coged.lab.SV <- coged.lab %>%
   left_join(nback.lab.acc %>% select(subID, level, acc), 
             by = c("subID" = "subID", "task" = "level"))
+
+#exploratory: look at young group only
+coged.lab.SV.young <- coged.lab.SV %>% 
+  left_join(demo %>% select(sub.id, Age.Bin, Age), by=c("subID" = "sub.id")) %>%
+  filter(Age.Bin=="35-44")
+SV.young <- lmer(data = coged.lab.SV.young, SV ~ taskCode*Age + groupCode + acc + (1 | subID))
+summary(SV.young)
+coged.lab.SV.young %>%
+    group_by(subID) %>%
+  mutate(Age=first(Age)) %>%
+  ungroup %>%
+  summarise(mean_age=mean(Age),sd_age = sd(Age))
+
+ef <- effects::effect(term="taskCode*Age", xlevels= list(Age=c(39.5641-2.419154, 39.5641+2.419154)), mod=SV.young)
+efdata<-as.data.frame(ef) #convert the effects list to a data frame
+efdata$Age<-as.factor(efdata$Age)
+ggplot(efdata, aes(x=taskCode, y=fit, color=Age,group=Age)) + 
+    geom_point() + 
+    geom_line(size=1.2) +
+    geom_ribbon(aes(ymin=fit-se, ymax=fit+se, fill=Age),alpha=0.3) + 
+    labs(x= "N-back Difficulty", y="Subjective Value", color="Age", fill="Age") +
+    theme_classic() + theme(text=element_text(size=12)) + 
+    scale_y_continuous(breaks = seq(0, 1, by=0.1), limits=c(0.3,0.8)) +
+    scale_x_continuous(breaks = seq(-1, 1, by=0.5), limits=c(-1, 1))
+
 #H1a
 SV <- lmer(data = coged.lab.SV, SV ~ taskCode + Age_centered + groupCode + acc + (1 | subID))
 summary(SV)
