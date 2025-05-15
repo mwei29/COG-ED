@@ -810,6 +810,7 @@ coged.prophard.sum$trialType <- factor(coged.prophard.sum$trialType, levels = c(
 #Collapse across trial types
 coged.prophard.sum2 <- summarySEwithin2(data = coged.fmri.hardChoice, measurevar = "propHard", withinvars = c("MDD_Status","Age.Group"), idvar = "subID")
 
+
 #plotting Cog-ED choices from scanner
 p.coged.hardChoice <- ggplot(coged.prophard.sum, aes(x=trialType, y=propHard)) + 
   theme(plot.title = element_text(hjust = 0.5), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) +
@@ -1165,7 +1166,7 @@ fig.group <- ggplot(preds.agg, aes(x = proximityValue, y = Predicted,
          fill = guide_legend(title = "MDD Status"),
           linetype = guide_legend(title = "Age Group", 
                           override.aes = list(linewidth = 1, 
-                                              linetype = c("solid", "dashed")))) +
+                                              linetype = c("dashed", "solid")))) +
   geom_hline(yintercept = 0.5, linetype = "dashed") + 
   geom_vline(xintercept = 0, linetype = "dashed") +
   theme(legend.position = "right", legend.key.width = unit(1, "cm"))
@@ -1245,6 +1246,48 @@ prox.RT.age.MDD <- lmer(data = coged.fmri.prox, choiceRT ~ I(proximityValue^2)*A
 summary(prox.RT.age.MDD)
 prox.RT.age.MDD.z <- lmer(data = coged.fmri.prox, zRT ~ I(proximityValue^2)*Age_centered*groupCode + (I(proximityValue^2)|subID))
 summary(prox.RT.age.MDD.z)
+
+ef <- effects::effect("I(proximityValue^2)*Age_centered*groupCode", 
+             mod = prox.RT.age.MDD.z, 
+             xlevels = list(Age_centered = c(-1, 0, 1), groupCode =c(0,1) ))
+
+# Convert to dataframe
+efdata <- as.data.frame(ef)
+efdata$groupCode <- as.factor(efdata$groupCode)
+
+# Convert Age values into factor labels
+efdata$Age_centered <- factor(efdata$Age_centered, 
+                     levels = c(-1, 0, 1), 
+                     labels = c("Low Age (-1 SD)", "Mean Age", "High Age (+1 SD)"))
+
+# Plot the three-way interaction
+ggplot(efdata, aes(x = I(proximityValue^2), y = fit, color = factor(groupCode, levels = c(0, 1), labels = c("HC", "MDD")), group = groupCode)) + 
+    geom_line(size = 1.2) +
+    geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = factor(groupCode, levels = c(0, 1), labels = c("HC", "MDD"))), alpha = 0.3) + 
+    labs(x = "Decision difficulty (higher value = easier decision)", y = "zRT", 
+         color = "MDD Status", fill = "MDD Status") +
+    theme_classic() +
+    facet_wrap(~ Age_centered)
+
+ggplot(efdata, aes(x = I(proximityValue^2), y = fit, 
+                   color = Age_centered, 
+                   group = Age_centered)) + 
+  geom_line(size = 1.2) +
+  geom_ribbon(aes(ymin = fit - se, ymax = fit + se, 
+                  fill = Age_centered), 
+              alpha = 0.3) + 
+  labs(x = "Decision difficulty (higher value = easier decision)", 
+       y = "zRT", 
+       color = "Age", 
+       fill = "Age") +
+  theme_classic() +
+  facet_wrap(~ factor(groupCode, levels = c(0, 1), labels = c("HC", "MDD")))+ 
+  scale_y_continuous(
+    limits = c(-0.25, 0.25)
+  ) +
+   scale_x_continuous(
+    limits = c(-1, 1)
+  )
 ```
 
 A **linear mixed-effects model (LMM)** was fit using **REML estimation** to examine the effects of **proximity²**, **age**, and **MDD status (groupCode: MDD vs. HC)** on **reaction time (RT)**.
