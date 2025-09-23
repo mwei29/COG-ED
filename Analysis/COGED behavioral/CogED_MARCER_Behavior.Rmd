@@ -11,6 +11,7 @@ output:
 ---
 # MARCER COGED Behavioral Summary
 #### There are 143 participants that have completed scan session. 142 participants have at least some coged/nback in lab data (7306 was excluded due to not completing any coged/nback in and out of the scanner despite having IAPS data). 134 participants have at least some COGED scan data.
+#### Note 092225, we are collapsing across sessions so I am only including 134 participants here. 
 #### N.b. all error bars in this summary are 95% CIs
 Started by MW in 12/10/24 to analyze MARCER COGED full behavioral data. The last version was CogED_MARCER_Behavior_2023.Rmd made by MW, adapted from JC's COGED PETMR project, for MW's SSM & ADAA projects in 2023.
 
@@ -18,31 +19,31 @@ Started by MW in 12/10/24 to analyze MARCER COGED full behavioral data. The last
 rm(list=ls());
 #Packages
 library(lme4); library(lmerTest); library(kableExtra); library(correlation); library(RColorBrewer); library(tidyverse);library(readxl);library(psych); library(easystats)
-source("C:/Users/Emotion/Documents/GIT-MW/COG-ED/Tools/summarySEwithin2.R")
+source("C:/Users/11091/OneDrive - University of Southern California/Research/COGED/Data_Code/Tools/summarySEwithin2.R")
 # library(boxr); box_auth(); 
 
-in.path <- "C:/Users/Emotion/Documents/GIT-MW/COG-ED/Data/" 
-out.path <-"C:/Users/Emotion/Documents/GIT-MW/COG-ED/Analysis/COGED behavioral/" 
+in.path <- "C:/Users/11091/OneDrive - University of Southern California/Research/COGED/Data_Code/Data/" 
 dir.desc <- "20250114";  
 sub.tbl <- read.table(paste0(in.path, "SubjectSet/", dir.desc, "_subjectSet.txt"), stringsAsFactors=FALSE); #Made from GIT/MARCER/weie/COGED/defineSubjectSet.R
 sub.ids <- sub.tbl$sub.id[which(sub.tbl$COGED_CatchNonCatch == TRUE)]
 length(sub.ids) # Number of participants included in coged fMRI analysis
-sub.ids.lab <- c("3051", "3085", "3093", "3097", "3117", "3139", "3204", "3218", "3235", "3347", 
-                 "3358", "3366", "3443", "3478", "3499", "3615", "3736", "3893", "3905", "3936", 
-                 "3942", "4001", "4053", "4078", "4123", "4323", "4330", "4355", "4427", "4457", 
-                 "4500", "4550", "4647", "4751", "4756", "4762", "4780", "4816", "4839", "4956", 
-                 "4977", "5013", "5027", "5115", "5128", "5143", "5177", "5222", "5359", "3710",
-                 "5402", "5433", "5436", "5501", "5614", "5663", "5773", "5827", "5889", "5920", 
-                 "5929", "5999", "6143", "6146", "6219", "6333", "6343", "6422", "6452", "6508", 
-                 "6524", "6529", "6558", "6597", "6609", "6820", "6978", "6995", "7124", "7233", 
-                 "7299", "7307", "7384", "7449", "7504", "7570", "7616", "7668", "7723", "7739", 
-                 "7750", "7807", "7823", "7875", "7902", "7939", "7979", "7993", "8000", "8170", 
-                 "8189", "8271", "8305", "8395", "8578", "8585", "3008", "3105", "3147", "3200", 
-                 "3287", "3355", "3384", "3406", "3867", "3868", "3958", "4020", "4308", "4314", 
-                 "4694", "4846", "5148", "5264", "5588", "5728", "5948", "6457", "6579", "6756", 
-                 "6822", "6946", "7088", "7552", "7685", "8016", "8130", "8556", "3217", 
-                 "6931", "8150", "8402") #This comes from fMRI subject notes in MARCER Basecamp to include everyone who attempted the scan, regardless of whether they have scan data. Do note that 7306 doesn't have coged data due to compliance issue
-length(sub.ids.lab)
+
+# sub.ids.lab <- c("3051", "3085", "3093", "3097", "3117", "3139", "3204", "3218", "3235", "3347", 
+#                  "3358", "3366", "3443", "3478", "3499", "3615", "3736", "3893", "3905", "3936", 
+#                  "3942", "4001", "4053", "4078", "4123", "4323", "4330", "4355", "4427", "4457", 
+#                  "4500", "4550", "4647", "4751", "4756", "4762", "4780", "4816", "4839", "4956", 
+#                  "4977", "5013", "5027", "5115", "5128", "5143", "5177", "5222", "5359", "3710",
+#                  "5402", "5433", "5436", "5501", "5614", "5663", "5773", "5827", "5889", "5920", 
+#                  "5929", "5999", "6143", "6146", "6219", "6333", "6343", "6422", "6452", "6508", 
+#                  "6524", "6529", "6558", "6597", "6609", "6820", "6978", "6995", "7124", "7233", 
+#                  "7299", "7307", "7384", "7449", "7504", "7570", "7616", "7668", "7723", "7739", 
+#                  "7750", "7807", "7823", "7875", "7902", "7939", "7979", "7993", "8000", "8170", 
+#                  "8189", "8271", "8305", "8395", "8578", "8585", "3008", "3105", "3147", "3200", 
+#                  "3287", "3355", "3384", "3406", "3867", "3868", "3958", "4020", "4308", "4314", 
+#                  "4694", "4846", "5148", "5264", "5588", "5728", "5948", "6457", "6579", "6756", 
+#                  "6822", "6946", "7088", "7552", "7685", "8016", "8130", "8556", "3217", 
+#                  "6931", "8150", "8402") #This comes from fMRI subject notes in MARCER Basecamp to include everyone who attempted the scan, regardless of whether they have scan data. Do note that 7306 doesn't have coged data due to compliance issue
+# length(sub.ids.lab)
 
 # # Load demographic
 # demo.tbl <- read_excel(paste0(in.path,"data_per_participant.xlsx"))
@@ -110,13 +111,12 @@ demo$ageCode <- as.numeric(as.character(demo$ageCode))
 demo$groupCode <- as.numeric(as.character(demo$groupCode))
 demo$Age_centered <- as.numeric(as.character(demo$Age_centered))
 
-demo.scan <- demo[demo$sub.id %in% sub.ids,]
+demo <- demo[demo$sub.id %in% sub.ids,]
 ```
 
 ## Demographic 
 
-### in-lab
-```{r Demo, echo=F, warning=FALSE, message=FALSE,cache=TRUE}
+```{r Demo142, eval=F, echo=F, warning=FALSE, message=FALSE, cache=F}
 describe(demo)
 #Age
 demo %>%
@@ -151,45 +151,181 @@ demo %>% select(Ethnicity) %>%
   count(Ethnicity)
 ```
 
-### scan
-```{r Demo_scan, echo=F, warning=FALSE, message=FALSE,cache=TRUE}
+### Demoographic summary with 134 participants that have done some scans
+```{r Demo134, echo=F, warning=FALSE, message=FALSE,cache=F}
 #Age
-demo.scan %>%
+demo %>%
   group_by(Age.Group) %>%
-  summarise(total_count=n()) 
-demo.scan %>%
+  summarise(
+    total_count = n(),
+    perc = 100 * n() / nrow(demo)
+  )
+
+demo %>%
   group_by(Age.Bin) %>%
-  summarise(total_count=n()) 
-describe(demo.scan$Age)
+  summarise(
+    total_count = n(),
+    perc = 100 * n() / nrow(demo)
+  )
+describe(demo$Age)
 #Gender
-demo.scan %>% select(Gender) %>%
-  count(Gender)
+demo %>% select(Gender) %>%
+  count(Gender)%>%
+  mutate(perc = 100 * n / sum(n))
 #MDD status
-demo.scan %>% select(MDD_Status) %>%
-  count(MDD_Status)
-demo.scan %>% 
+demo %>% select(MDD_Status) %>%
+  count(MDD_Status)%>%
+  mutate(perc = 100 * n / sum(n))
+demo %>% 
   group_by(Age.Group,MDD_Status) %>%
-  summarise(total_count=n()) 
-demo.scan %>% 
+  summarise(total_count = n()) %>%
+  ungroup() %>%
+  mutate(perc = 100 * total_count / sum(total_count)) 
+demo %>% 
   group_by(Age.Bin,MDD_Status) %>%
-  summarise(total_count=n()) 
-demo.scan %>% 
-  group_by(Age.Group,MDD_Status,Gender) %>%
-  summarise(total_count=n()) 
+  summarise(total_count = n()) %>%
+  ungroup() %>%
+  mutate(perc = 100 * total_count / sum(total_count)) 
+demo %>% 
+  group_by(Age.Bin,MDD_Status, Gender) %>%
+  summarise(total_count = n()) %>%
+  ungroup() %>%
+  mutate(perc = 100 * total_count / sum(total_count))  
 #Race
-demo.scan %>% select(Race) %>%
-  count(Race)
-demo.scan %>% 
+demo %>% select(Race) %>%
+  count(Race)%>%
+  mutate(perc = 100 * n / sum(n))
+demo %>% 
   group_by(Age.Group,MDD_Status,Race) %>%
-  summarise(total_count=n()) 
-demo.scan %>% select(Ethnicity) %>%
-  count(Ethnicity)
+  summarise(total_count = n()) %>%
+  ungroup() %>%
+  mutate(perc = 100 * total_count / sum(total_count))
+demo %>% select(Ethnicity) %>%
+  count(Ethnicity)%>%
+  mutate(perc = 100 * n / sum(n))
 ```
 
-## Lab Session
+## Dataset prepping
 
-### N-Back Performance
-```{r nback, echo=F, warning=F, message=F,cache=TRUE}
+### N-Back: collapsing two N-Back session & cleaning dataset
+```{r nback, echo=T, warning=F, message=F,cache=T}
+nback.lab  <- nback.lab  %>% filter(subID %in% sub.ids)
+length(unique(nback.lab$subID))
+nback.fmri <- nback.fmri %>% filter(subID %in% sub.ids)
+length(unique(nback.fmri$subID)) #only including 134 participants, checked subID
+nback.lab  <- nback.lab  %>% mutate(session = "lab")
+nback.fmri <- nback.fmri %>% mutate(session = "fmri") #add in session
+nback.all <- bind_rows(nback.lab, nback.fmri) #combine nback together
+
+nback.all.clean <- left_join(nback.all, demo %>% 
+                       select(sub.id, ageCode, Age_centered, Age.Group, groupCode, MDD_Status), 
+                       by = c("subID" = "sub.id")) %>% 
+  filter(resp != 9) %>%
+  select(subID, level, kind, acc, RT, session, ageCode, Age_centered, Age.Group, groupCode, MDD_Status) %>% 
+  mutate(level = factor(level, levels = c(1,2,3,4), labels = c("Black","Red","Blue","Purple")),
+         taskCode = factor(level, levels =  c("Black","Red","Blue","Purple"), labels = c(0,1,2,3)),
+         sessionCode = factor (session, levels = c("lab", "fmri"), labels = c(0,1)),
+         type = factor(kind, levels = c(-1,0,1), labels = c("lure","non-target","target")),
+         hit = if_else((kind == 1 & acc == 1), 1, 0),
+         FA = if_else((kind == 0 & acc == 0), 1, 0)) %>%
+  filter(type != "lure")
+nback.all.clean$taskCode <- as.numeric(as.character(nback.all.clean$taskCode))
+nback.all.clean$sessionCode <- as.numeric(as.character(nback.all.clean$sessionCode))
+
+#Accuracy Main - without group; as expected, accuracy goes down as task becomes harder, people performed worse in fMRI session
+nback.all.acc <- glmer(data = nback.all.clean, acc ~ taskCode + sessionCode + (1 + taskCode | subID), family = "binomial")
+summary(nback.all.acc)
+#Accuracy with group; 
+nback.all.acc.group <- glmer(data = nback.all.clean, acc ~ taskCode + Age_centered + groupCode + sessionCode + (1 + taskCode | subID), family = "binomial")
+summary(nback.all.acc.group)
+nback.all.acc.group1 <- glmer(data = nback.all.clean, acc ~ taskCode*Age_centered + groupCode + sessionCode + (1 + taskCode | subID), family = "binomial")
+summary(nback.all.acc.group1)
+nback.all.acc.group2 <- glmer(data = nback.all.clean, acc ~ taskCode*groupCode + Age_centered + sessionCode + (1 + taskCode | subID), family = "binomial")
+summary(nback.all.acc.group2)
+nback.all.acc.group3 <- glmer(data = nback.all.clean, acc ~ taskCode*groupCode*Age_centered + sessionCode + (1 + taskCode | subID), family = "binomial", control = glmerControl(optimizer = "bobyqa"))
+summary(nback.all.acc.group3)
+
+#visualize
+ef <- effects::effect("taskCode*groupCode*Age_centered", 
+             mod = nback.all.acc.group3, 
+             xlevels = list(Age_centered = c(-1, 0, 1), groupCode =c(0,1) ))
+# Convert to dataframe
+efdata <- as.data.frame(ef)
+efdata$groupCode <- factor(efdata$groupCode, levels = c(0,1), labels = c("HC", "MDD"))
+# Convert Age values into factor labels
+efdata$Age_centered <- factor(efdata$Age_centered, 
+                     levels = c(-1,0,1), 
+                     labels = c("Low Age (-1 SD)", "Mean Age", "High Age (+1 SD)"))
+
+# Plot the three-way interaction
+ggplot(efdata, aes(x = taskCode, y = fit, color = groupCode, group = groupCode)) + 
+  geom_line(size = 1.2) +
+  geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = groupCode), alpha = 0.3) + 
+  labs(x = "N-back Task Load", y = "Accuracy", 
+       color = "groupCode", fill = "groupCode") +
+  theme_classic() +
+  facet_wrap(~ Age_centered)+ 
+  scale_x_continuous(breaks = 0:3, labels = 1:4)
+
+ggplot(efdata, aes(x = taskCode, y = fit, color = Age_centered, group = Age_centered)) + 
+  geom_line(size = 1.2) +
+  geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = Age_centered), alpha = 0.3) + 
+  labs(x = "N-back Task Load", y = "Accuracy", 
+       color = "Age_centered", fill = "Age_centered") +
+  theme_classic() +
+  facet_wrap(~ groupCode) + 
+  scale_x_continuous(breaks = 0:3, labels = 1:4)
+
+
+#RT
+#RT; as expected, RT increases as nback gets harder
+nback.all.RT <- lmer(data = nback.all.clean, RT ~ taskCode + sessionCode + (1 + taskCode | subID))
+summary(nback.all.RT)
+
+#RT - with group
+nback.all.RT.group <- lmer(data = nback.all.clean, RT ~ taskCode +  Age_centered + groupCode + sessionCode + (1 + taskCode | subID))
+summary(nback.all.RT.group)
+nback.all.RT.group1 <- lmer(data = nback.all.clean, RT ~ taskCode*Age_centered + groupCode + sessionCode + (1 + taskCode | subID))
+summary(nback.all.RT.group1)
+nback.all.RT.group2 <- lmer(data = nback.all.clean, RT ~ taskCode*groupCode +  Age_centered + sessionCode + (1 + taskCode | subID))
+summary(nback.all.RT.group2)
+nback.all.RT.group3 <- lmer(data = nback.all.clean, RT ~ taskCode*Age_centered*groupCode + sessionCode + (1 + taskCode | subID))
+summary(nback.all.RT.group3)
+
+#visualize
+ef <- effects::effect("taskCode*Age_centered*groupCode", 
+             mod = nback.all.RT.group3, 
+             xlevels = list(Age_centered = c(-1, 0, 1), groupCode =c(0,1) ))
+# Convert to dataframe
+efdata <- as.data.frame(ef)
+efdata$groupCode <- factor(efdata$groupCode, levels = c(0,1), labels = c("HC", "MDD"))
+# Convert Age values into factor labels
+efdata$Age_centered <- factor(efdata$Age_centered, 
+                     levels = c(-1,0,1), 
+                     labels = c("Low Age (-1 SD)", "Mean Age", "High Age (+1 SD)"))
+
+# Plot the three-way interaction
+ggplot(efdata, aes(x = taskCode, y = fit, color = groupCode, group = groupCode)) + 
+  geom_line(size = 1.2) +
+  geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = groupCode), alpha = 0.3) + 
+  labs(x = "N-back Task Load", y = "Reaction Time", 
+       color = "groupCode", fill = "groupCode") +
+  theme_classic() +
+  facet_wrap(~ Age_centered) + 
+  scale_x_continuous(breaks = 0:3, labels = 1:4)
+
+ggplot(efdata, aes(x = taskCode, y = fit, color = Age_centered, group = Age_centered)) + 
+  geom_line(size = 1.2) +
+  geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = Age_centered), alpha = 0.3) + 
+  labs(x = "N-back Task Load", y = "Reaction Time", 
+       color = "Age_centered", fill = "Age_centered") +
+  theme_classic() +
+  facet_wrap(~ groupCode) + 
+  scale_x_continuous(breaks = 0:3, labels = 1:4)
+```
+
+
+```{r nback_labonly, eval = F, echo=F, warning=F, message=F,cache=F}
 #Summarizing n-back performance
 nback.lab <- left_join(nback.lab, demo %>% 
                        select(sub.id, Age.Group, Age_centered, groupCode, MDD_Status), 
@@ -377,45 +513,222 @@ p.nback.lab.RT.group <- ggplot(nback.lab.RT.sum.group, aes(x=level, y=RT, fill=t
 p.nback.lab.RT.group
 ```
 
+```{r nback_fmrionly, eval = F, echo=F, warning=F, message=F, cache=F}
+#summarizing n-back task performance in the scanner
+nback.fmri <- nback.fmri %>% filter(resp != 9) %>%select(subID, level, kind, acc, RT) %>%
+  mutate(level = factor(level, levels = c(1,2,3,4), labels = c("Black","Red","Blue","Purple")),
+         taskCode = factor(level, levels =  c("Black","Red","Blue","Purple"), labels = c(0,1,2,3)),
+         type = factor(kind, levels = c(-1,0,1), labels = c("lure","non-target","target")),
+         hit = if_else((kind == 1 & acc == 1), 1, 0),
+         FA = if_else((kind == 0 & acc == 0), 1, 0)) %>%
+  filter(type != "lure") %>%
+  left_join(demo %>% select(sub.id, MDD_Status, Age.Group, Age_centered, groupCode), 
+            by = c("subID" = "sub.id")) %>%
+  group_by(subID) %>%
+  mutate(RT_pm = mean(RT,na.rm=TRUE),
+         RT_sd = sd(RT,na.rm=TRUE)) %>%
+  ungroup() %>%
+  mutate(zRT = (RT-RT_pm)/RT_sd)
+nback.fmri$taskCode <- as.numeric(as.character(nback.fmri$taskCode))
 
-### COGED SV and RT
+#Accuracy - without group; as expected, accuracy goes down as task becomes harder
+nback.fmri.acc <- glmer(data = nback.fmri, acc ~ taskCode + (1 | subID), family = "binomial")
+summary(nback.fmri.acc)
+nback.fmri.acc.sum <- summarySEwithin2(nback.fmri, measurevar = "acc", withinvars = c("level","kind"), idvar = "subID") %>%
+          mutate(kind = factor(kind, levels = c(0,1), labels = c("non-target","target"))) %>%
+  rename("trial_type" = kind) %>% select(c(level, trial_type, acc, sd, se, ci)) %>% arrange(level)
+kable(nback.fmri.acc.sum, digits = 3) %>% kable_styling()
+
+#Visualization
+p.nback.fmri.acc <- ggplot(nback.fmri.acc.sum, aes(x=level, y=acc, fill=trial_type)) + 
+  theme(plot.title = element_text(hjust = 0.5), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  geom_bar(stat="identity", position=position_dodge(), alpha=.45, size=1.1) +
+  geom_errorbar(position=position_dodge(width=0.9), aes(ymin=acc-ci, ymax=acc+ci), width=.2, size=1.1) +  
+  xlab("N-Back Level") + ylab("Accuracy") + ggtitle("N-Back Performance (Accuracy)") 
+p.nback.fmri.acc + scale_fill_brewer(palette = "Paired",  name="Trial Type", labels=c("Non-Target","Target"))
+
+#Accuracy - with groups; as expected, age has a negative main effect on accuracy, MDD N.S.
+nback.fmri.acc.group <- glmer(data = nback.fmri, acc ~ taskCode + Age_centered + groupCode + (1 | subID), family = "binomial")
+summary(nback.fmri.acc.group)
+nback.fmri.acc.group1 <- glmer(data = nback.fmri, acc ~ taskCode*Age_centered + groupCode + (1 | subID), family = "binomial")
+summary(nback.fmri.acc.group1)
+nback.fmri.acc.group2 <- glmer(data = nback.fmri, acc ~ taskCode*groupCode + Age_centered + (1 | subID), family = "binomial")
+summary(nback.fmri.acc.group2)
+nback.fmri.acc.group3 <- glmer(data = nback.fmri, acc ~ taskCode*groupCode*Age_centered + (1 | subID), family = "binomial")
+summary(nback.fmri.acc.group3)
+
+#visualize
+ef <- effects::effect("taskCode*groupCode*Age_centered", 
+             mod = nback.fmri.acc.group3, 
+             xlevels = list(Age_centered = c(-1, 0, 1), groupCode =c(0,1) ))
+# Convert to dataframe
+efdata <- as.data.frame(ef)
+efdata$groupCode <- factor(efdata$groupCode, levels = c(0,1), labels = c("HC", "MDD"))
+# Convert Age values into factor labels
+efdata$Age_centered <- factor(efdata$Age_centered, 
+                     levels = c(-1,0,1), 
+                     labels = c("Low Age (-1 SD)", "Mean Age", "High Age (+1 SD)"))
+
+# Plot the three-way interaction
+ggplot(efdata, aes(x = taskCode, y = fit, color = groupCode, group = groupCode)) + 
+    geom_line(size = 1.2) +
+    geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = groupCode), alpha = 0.3) + 
+    labs(x = "N-back Task Load", y = "Accuracy", 
+         color = "groupCode", fill = "groupCode") +
+    theme_classic() +
+    facet_wrap(~ Age_centered)
+
+ggplot(efdata, aes(x = taskCode, y = fit, color = Age_centered, group = Age_centered)) + 
+    geom_line(size = 1.2) +
+    geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = Age_centered), alpha = 0.3) + 
+    labs(x = "N-back Task Load", y = "Accuracy", 
+         color = "Age_centered", fill = "Age_centered") +
+    theme_classic() +
+    facet_wrap(~ groupCode)
+
+nback.fmri.acc.sum.group <- summarySEwithin2(nback.fmri, measurevar = "acc", withinvars = c("level","kind","MDD_Status","Age.Group"), idvar = "subID") %>%
+          mutate(kind = factor(kind, levels = c(0,1), labels = c("non-target","target"))) %>%
+          rename("trial_type" = kind) %>% 
+          select(c(level, trial_type, acc, sd, se, ci, MDD_Status, Age.Group)) %>%
+          arrange(level)
+anova_result <- aov(acc ~ level * MDD_Status * Age.Group, data = nback.fmri.acc.sum.group)
+summary(anova_result)
+
+p.nback.fmri.acc.group <- ggplot(nback.fmri.acc.sum.group, aes(x=level, y=acc, fill=trial_type, group=trial_type)) + 
+  theme(plot.title = element_text(hjust = 0.5), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  geom_bar(stat="identity", position=position_dodge(), alpha=.45, size=1.1) +
+  geom_errorbar(position=position_dodge(width=0.9), aes(ymin=acc-ci, ymax=acc+ci), width=.2, size=1.1) +  
+  xlab("N-Back Level") + ylab("Accuracy") + ggtitle("N-Back Performance (Accuracy)") +
+  facet_grid(MDD_Status ~ Age.Group) + 
+  scale_fill_brewer(palette = "Paired",  name="Trial Type", labels=c("Non-Target","Target"))
+p.nback.fmri.acc.group
+
+#RT; as expected, RT increases as nback gets harder
+nback.fmri.RT <- lmer(data = nback.fmri, RT ~ taskCode + (1 | subID))
+summary(nback.fmri.RT)
+nback.fmri.RT.z <- lmer(data = nback.fmri, zRT ~ taskCode + (1 | subID))
+summary(nback.fmri.RT.z)
+
+nback.fmri.RT.sum <- summarySEwithin2(nback.fmri, measurevar = "RT", withinvars = c("level","kind"), idvar = "subID") %>%
+          mutate(kind = factor(kind, levels = c(0,1), labels = c("non-target","target"))) %>%
+  rename("trial_type" = kind) %>% select(c(level, trial_type, RT, sd, se, ci)) %>% arrange(level)
+kable(nback.fmri.RT.sum, digits = 3) %>% kable_styling()
+#Visualization
+p.nback.fmri.RT <- ggplot(nback.fmri.RT.sum, aes(x=level, y=RT, fill=trial_type)) + 
+  theme(plot.title = element_text(hjust = 0.5), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  geom_bar(stat="identity", position=position_dodge(), alpha=.45, size=1.1) +
+  geom_errorbar(position=position_dodge(width=0.9), aes(ymin=RT-ci, ymax=RT+ci), width=.2, size=1.1) +  
+  xlab("N-Back Level") + ylab("RT (seconds)") + ggtitle("N-Back Performance (RT)")
+p.nback.fmri.RT + scale_fill_brewer(palette = "Paired",  name="Trial Type", labels=c("Non-Target","Target"))
+
+#RT - with group
+nback.fmri.RT.group <- lmer(data = nback.fmri, RT ~ taskCode +  Age_centered + groupCode + (1 | subID))
+summary(nback.fmri.RT.group)
+# nback.fmri.RT.group.z <- lmer(data = nback.fmri, zRT ~ taskCode +  Age_centered + groupCode + (1 | subID))
+# summary(nback.fmri.RT.group.z)
+nback.fmri.RT.group1 <- lmer(data = nback.fmri, RT ~ taskCode* Age_centered*groupCode + (1 | subID))
+summary(nback.fmri.RT.group1)
+# nback.fmri.RT.group.1z <- lmer(data = nback.fmri, zRT ~ taskCode* Age_centered*groupCode + (1 | subID))
+# summary(nback.fmri.RT.group.1z)
+ef <- effects::effect("taskCode*Age_centered*groupCode", 
+             mod = nback.fmri.RT.group1, 
+             xlevels = list(Age_centered = c(-1, 0, 1), groupCode =c(0,1) ))
+# Convert to dataframe
+efdata <- as.data.frame(ef)
+efdata$groupCode <- factor(efdata$groupCode, levels = c(0,1), labels = c("HC", "MDD"))
+# Convert Age values into factor labels
+efdata$Age_centered <- factor(efdata$Age_centered, 
+                     levels = c(-1,0,1), 
+                     labels = c("Low Age (-1 SD)", "Mean Age", "High Age (+1 SD)"))
+
+# Plot the three-way interaction
+ggplot(efdata, aes(x = taskCode, y = fit, color = groupCode, group = groupCode)) + 
+    geom_line(size = 1.2) +
+    geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = groupCode), alpha = 0.3) + 
+    labs(x = "N-back Task Load", y = "Reaction Time", 
+         color = "groupCode", fill = "groupCode") +
+    theme_classic() +
+    facet_wrap(~ Age_centered)
+
+ggplot(efdata, aes(x = taskCode, y = fit, color = Age_centered, group = Age_centered)) + 
+    geom_line(size = 1.2) +
+    geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = Age_centered), alpha = 0.3) + 
+    labs(x = "N-back Task Load", y = "Reaction Time", 
+         color = "Age_centered", fill = "Age_centered") +
+    theme_classic() +
+    facet_wrap(~ groupCode)
+
+ef <- effects::effect("taskCode*Age_centered*groupCode", 
+             mod = nback.fmri.RT.group.1z, 
+             xlevels = list(Age_centered = c(-1, 0, 1), groupCode =c(0,1) ))
+# Convert to dataframe
+efdata <- as.data.frame(ef)
+efdata$groupCode <- factor(efdata$groupCode, levels = c(0,1), labels = c("HC", "MDD"))
+# Convert Age values into factor labels
+efdata$Age_centered <- factor(efdata$Age_centered, 
+                     levels = c(-1,0,1), 
+                     labels = c("Low Age (-1 SD)", "Mean Age", "High Age (+1 SD)"))
+
+# Plot the three-way interaction
+ggplot(efdata, aes(x = taskCode, y = fit, color = groupCode, group = groupCode)) + 
+    geom_line(size = 1.2) +
+    geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = groupCode), alpha = 0.3) + 
+    labs(x = "N-back Task Load", y = "Reaction Time(z)", 
+         color = "groupCode", fill = "groupCode") +
+    theme_classic() +
+    facet_wrap(~ Age_centered)
+
+ggplot(efdata, aes(x = taskCode, y = fit, color = Age_centered, group = Age_centered)) + 
+    geom_line(size = 1.2) +
+    geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = Age_centered), alpha = 0.3) + 
+    labs(x = "N-back Task Load", y = "Reaction Time(z)", 
+         color = "Age_centered", fill = "Age_centered") +
+    theme_classic() +
+    facet_wrap(~ groupCode)
+
+nback.fmri.RT.sum.group <- summarySEwithin2(nback.fmri, measurevar = "RT", withinvars = c("level","kind","MDD_Status","Age.Group"), idvar = "subID") %>%
+          mutate(kind = factor(kind, levels = c(0,1), labels = c("non-target","target"))) %>%
+  rename("trial_type" = kind) %>% select(c(level, trial_type, RT, sd, se, ci, MDD_Status, Age.Group)) %>% arrange(level)
+kable(nback.fmri.RT.sum.group, digits = 3) %>% kable_styling()
+
+p.nback.fmri.RT.group <- ggplot(nback.fmri.RT.sum.group, aes(x=level, y=RT, fill=trial_type, group=trial_type)) + 
+  theme(plot.title = element_text(hjust = 0.5), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  geom_bar(stat="identity", position=position_dodge(), alpha=.45, size=1.1) +
+  geom_errorbar(position=position_dodge(width=0.9), aes(ymin=RT-ci, ymax=RT+ci), width=.2, size=1.1) +  
+  xlab("N-Back Level") + ylab("RT (seconds)") + ggtitle("N-Back Performance (RT)") +
+  facet_grid(MDD_Status ~ Age.Group) + scale_fill_brewer(palette = "Paired",  name="Trial Type", labels=c("Non-Target","Target"))
+p.nback.fmri.RT.group
+
+nback.fmri.performance <- nback.fmri %>% group_by(subID, level) %>%
+  summarise(hitRate = (sum(hit)/16), FARate = sum(FA)/48, mRT = mean(RT)) %>%
+  rename(task = "level")
+nback.fmri.performance
+```
+
+### COGED: COGED SV and RT
 (Black = 1-back, Red = 2-Back, Blue = 3-back, Purple = 4-back)
 We are not seeing an age or MDD effect in SV..
-```{r SV_CogED, echo=T, warning=F, message=F,cache=TRUE}
+```{r SV_CogED, echo=T, warning=F, message=F,cache=F}
 #clean data frame with Cog-ED SV estimates
+coged.lab <- coged.lab  %>% filter(subID %in% sub.ids)
 coged.lab <- left_join(coged.lab, demo %>%
                        select(sub.id, MDD_Status, Age.Group, Age_centered,groupCode),
                        by = c("subID" = "sub.id")) %>%
   group_by(subID) %>%
   mutate(taskCode = factor(task, levels=c(1,2,3), labels=c(-1,0,1)),
          rewardCode = factor(amount, levels = c(2,3,4), labels = c(-1,0,1)),
-         task = factor(task, levels=c(1,2,3), labels=c("Red","Blue","Purple")))
+         task = factor(task, levels=c(1,2,3), labels=c("Red","Blue","Purple")))%>%
+  ungroup()
 coged.lab$taskCode <- as.numeric(as.character(coged.lab$taskCode))
 coged.lab$rewardCode <- as.numeric(as.character(coged.lab$rewardCode))
 
-
 coged.SV <- coged.lab %>% group_by(subID, task, Age.Group, MDD_Status) %>%
-summarise(meanSV = mean(SV))
+  summarise(meanSV = mean(SV))
 coged.SV
-
-highSV <- coged.SV[coged.SV$meanSV > 0.8 & coged.SV$task == "Purple", ,drop = FALSE]
-highSV.sid <- unique(highSV$subID)
-highSV.demo <- demo[demo$sub.id %in% highSV.sid,]
-highSV.demo %>%
-  count(Race,Age.Group) %>%
-  mutate(Prop = n / sum(n))
-
-
-#testing for differences across task & condition (red, blue, purple). As predicted, SV is discounted with task difficulty
-SV <- lmer(data = coged.lab, SV ~ taskCode + (1 | subID))
-summary(SV)
-
-SV.group <- lmer(data = coged.lab, SV ~ taskCode + Age_centered + groupCode + (1 | subID))
-summary(SV.group)
 ```
 
-### COGED SV plot
-``` {r CogED_SV_Plot, echo=F, warning = F, message = F, cache=TRUE}
+### COGED: SV plot
+``` {r CogED_SV_Plot, eval=T, echo=F, warning = F, message = F, cache=F}
 #summary of data for plotting
 coged.lab.sum <- summarySEwithin2(coged.lab, measurevar = "SV", withinvars = c("task","MDD_Status","Age.Group"), idvar = "subID")
 #Plotting
@@ -454,7 +767,7 @@ average.SV
 
 ## Self-Report Questionnaires
 NASA TLX (administered after each run of the familiarization tasks)
-``` {r NASA, echo=F, warning = F, message = F, cache=TRUE}
+``` {r NASA, eval = F, echo=F, warning = F, message = F, cache=F}
 #cleaning up data structures from REDCap
 NASA <- NASA %>%
   pivot_longer(cols = c("black_mdemand", "black_pdemand", "black_tdemand", "red_mdemand", "red_pdemand", "red_tdemand", "blue_mdemand", "blue_pdemand", "blue_tdemand","purple_mdemand", "purple_pdemand", "purple_tdemand"), names_to = "condition", values_to = "rating") %>%
@@ -570,201 +883,6 @@ p.frust <- ggplot(NASA_frust_sum, aes(x=Task, y=mean.frust)) +
 p.frust
 ```
 
-## fMRI Session
-
-### N-Back Performance in scanner
-```{r nback_fmri, echo=F, warning=F, message=F, cache=TRUE}
-#summarizing n-back task performance in the scanner
-nback.fmri <- nback.fmri %>% filter(resp != 9) %>%select(subID, level, kind, acc, RT) %>%
-  mutate(level = factor(level, levels = c(1,2,3,4), labels = c("Black","Red","Blue","Purple")),
-         taskCode = factor(level, levels =  c("Black","Red","Blue","Purple"), labels = c(0,1,2,3)),
-         type = factor(kind, levels = c(-1,0,1), labels = c("lure","non-target","target")),
-         hit = if_else((kind == 1 & acc == 1), 1, 0),
-         FA = if_else((kind == 0 & acc == 0), 1, 0)) %>%
-  filter(type != "lure") %>%
-  left_join(demo.scan %>% select(sub.id, MDD_Status, Age.Group, Age_centered, groupCode), 
-            by = c("subID" = "sub.id")) %>%
-  group_by(subID) %>%
-  mutate(RT_pm = mean(RT,na.rm=TRUE),
-         RT_sd = sd(RT,na.rm=TRUE)) %>%
-  ungroup() %>%
-  mutate(zRT = (RT-RT_pm)/RT_sd)
-nback.fmri$taskCode <- as.numeric(as.character(nback.fmri$taskCode))
-
-#Accuracy - without group; as expected, accuracy goes down as task becomes harder
-nback.fmri.acc <- glmer(data = nback.fmri, acc ~ taskCode + (1 | subID), family = "binomial")
-summary(nback.fmri.acc)
-nback.fmri.acc.sum <- summarySEwithin2(nback.fmri, measurevar = "acc", withinvars = c("level","kind"), idvar = "subID") %>%
-          mutate(kind = factor(kind, levels = c(0,1), labels = c("non-target","target"))) %>%
-  rename("trial_type" = kind) %>% select(c(level, trial_type, acc, sd, se, ci)) %>% arrange(level)
-kable(nback.fmri.acc.sum, digits = 3) %>% kable_styling()
-
-#Visualization
-p.nback.fmri.acc <- ggplot(nback.fmri.acc.sum, aes(x=level, y=acc, fill=trial_type)) + 
-  theme(plot.title = element_text(hjust = 0.5), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) +
-  geom_bar(stat="identity", position=position_dodge(), alpha=.45, size=1.1) +
-  geom_errorbar(position=position_dodge(width=0.9), aes(ymin=acc-ci, ymax=acc+ci), width=.2, size=1.1) +  
-  xlab("N-Back Level") + ylab("Accuracy") + ggtitle("N-Back Performance (Accuracy)") 
-p.nback.fmri.acc + scale_fill_brewer(palette = "Paired",  name="Trial Type", labels=c("Non-Target","Target"))
-
-#Accuracy - with groups; as expected, age has a negative main effect on accuracy, MDD N.S.
-nback.fmri.acc.group <- glmer(data = nback.fmri, acc ~ taskCode + Age_centered + groupCode + (1 | subID), family = "binomial")
-summary(nback.fmri.acc.group)
-nback.fmri.acc.group1 <- glmer(data = nback.fmri, acc ~ taskCode*Age_centered + groupCode + (1 | subID), family = "binomial")
-summary(nback.fmri.acc.group1)
-nback.fmri.acc.group2 <- glmer(data = nback.fmri, acc ~ taskCode*groupCode + Age_centered + (1 | subID), family = "binomial")
-summary(nback.fmri.acc.group2)
-nback.fmri.acc.group3 <- glmer(data = nback.fmri, acc ~ taskCode*groupCode*Age_centered + (1 | subID), family = "binomial")
-summary(nback.fmri.acc.group3)
-
-#visualize
-ef <- effects::effect("taskCode*groupCode*Age_centered", 
-             mod = nback.fmri.acc.group3, 
-             xlevels = list(Age_centered = c(-1, 0, 1), groupCode =c(0,1) ))
-# Convert to dataframe
-efdata <- as.data.frame(ef)
-efdata$groupCode <- factor(efdata$groupCode, levels = c(0,1), labels = c("HC", "MDD"))
-# Convert Age values into factor labels
-efdata$Age_centered <- factor(efdata$Age_centered, 
-                     levels = c(-1,0,1), 
-                     labels = c("Low Age (-1 SD)", "Mean Age", "High Age (+1 SD)"))
-
-# Plot the three-way interaction
-ggplot(efdata, aes(x = taskCode, y = fit, color = groupCode, group = groupCode)) + 
-    geom_line(size = 1.2) +
-    geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = groupCode), alpha = 0.3) + 
-    labs(x = "N-back Task Load", y = "Accuracy", 
-         color = "groupCode", fill = "groupCode") +
-    theme_classic() +
-    facet_wrap(~ Age_centered)
-
-ggplot(efdata, aes(x = taskCode, y = fit, color = Age_centered, group = Age_centered)) + 
-    geom_line(size = 1.2) +
-    geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = Age_centered), alpha = 0.3) + 
-    labs(x = "N-back Task Load", y = "Accuracy", 
-         color = "Age_centered", fill = "Age_centered") +
-    theme_classic() +
-    facet_wrap(~ groupCode)
-
-nback.fmri.acc.sum.group <- summarySEwithin2(nback.fmri, measurevar = "acc", withinvars = c("level","kind","MDD_Status","Age.Group"), idvar = "subID") %>%
-          mutate(kind = factor(kind, levels = c(0,1), labels = c("non-target","target"))) %>%
-          rename("trial_type" = kind) %>% 
-          select(c(level, trial_type, acc, sd, se, ci, MDD_Status, Age.Group)) %>%
-          arrange(level)
-anova_result <- aov(acc ~ level * MDD_Status * Age.Group, data = nback.fmri.acc.sum.group)
-summary(anova_result)
-
-p.nback.fmri.acc.group <- ggplot(nback.fmri.acc.sum.group, aes(x=level, y=acc, fill=trial_type, group=trial_type)) + 
-  theme(plot.title = element_text(hjust = 0.5), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) +
-  geom_bar(stat="identity", position=position_dodge(), alpha=.45, size=1.1) +
-  geom_errorbar(position=position_dodge(width=0.9), aes(ymin=acc-ci, ymax=acc+ci), width=.2, size=1.1) +  
-  xlab("N-Back Level") + ylab("Accuracy") + ggtitle("N-Back Performance (Accuracy)") +
-  facet_grid(MDD_Status ~ Age.Group) + 
-  scale_fill_brewer(palette = "Paired",  name="Trial Type", labels=c("Non-Target","Target"))
-p.nback.fmri.acc.group
-
-#RT; as expected, RT increases as nback gets harder
-nback.fmri.RT <- lmer(data = nback.fmri, RT ~ taskCode + (1 | subID))
-summary(nback.fmri.RT)
-nback.fmri.RT.z <- lmer(data = nback.fmri, zRT ~ taskCode + (1 | subID))
-summary(nback.fmri.RT.z)
-
-nback.fmri.RT.sum <- summarySEwithin2(nback.fmri, measurevar = "RT", withinvars = c("level","kind"), idvar = "subID") %>%
-          mutate(kind = factor(kind, levels = c(0,1), labels = c("non-target","target"))) %>%
-  rename("trial_type" = kind) %>% select(c(level, trial_type, RT, sd, se, ci)) %>% arrange(level)
-kable(nback.fmri.RT.sum, digits = 3) %>% kable_styling()
-#Visualization
-p.nback.fmri.RT <- ggplot(nback.fmri.RT.sum, aes(x=level, y=RT, fill=trial_type)) + 
-  theme(plot.title = element_text(hjust = 0.5), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) +
-  geom_bar(stat="identity", position=position_dodge(), alpha=.45, size=1.1) +
-  geom_errorbar(position=position_dodge(width=0.9), aes(ymin=RT-ci, ymax=RT+ci), width=.2, size=1.1) +  
-  xlab("N-Back Level") + ylab("RT (seconds)") + ggtitle("N-Back Performance (RT)")
-p.nback.fmri.RT + scale_fill_brewer(palette = "Paired",  name="Trial Type", labels=c("Non-Target","Target"))
-
-#RT - with group
-nback.fmri.RT.group <- lmer(data = nback.fmri, RT ~ taskCode +  Age_centered + groupCode + (1 | subID))
-summary(nback.fmri.RT.group)
-nback.fmri.RT.group.z <- lmer(data = nback.fmri, zRT ~ taskCode +  Age_centered + groupCode + (1 | subID))
-summary(nback.fmri.RT.group.z)
-nback.fmri.RT.group1 <- lmer(data = nback.fmri, RT ~ taskCode* Age_centered*groupCode + (1 | subID))
-summary(nback.fmri.RT.group1)
-nback.fmri.RT.group.1z <- lmer(data = nback.fmri, zRT ~ taskCode* Age_centered*groupCode + (1 | subID))
-summary(nback.fmri.RT.group.1z)
-ef <- effects::effect("taskCode*Age_centered*groupCode", 
-             mod = nback.fmri.RT.group1, 
-             xlevels = list(Age_centered = c(-1, 0, 1), groupCode =c(0,1) ))
-# Convert to dataframe
-efdata <- as.data.frame(ef)
-efdata$groupCode <- factor(efdata$groupCode, levels = c(0,1), labels = c("HC", "MDD"))
-# Convert Age values into factor labels
-efdata$Age_centered <- factor(efdata$Age_centered, 
-                     levels = c(-1,0,1), 
-                     labels = c("Low Age (-1 SD)", "Mean Age", "High Age (+1 SD)"))
-
-# Plot the three-way interaction
-ggplot(efdata, aes(x = taskCode, y = fit, color = groupCode, group = groupCode)) + 
-    geom_line(size = 1.2) +
-    geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = groupCode), alpha = 0.3) + 
-    labs(x = "N-back Task Load", y = "Reaction Time", 
-         color = "groupCode", fill = "groupCode") +
-    theme_classic() +
-    facet_wrap(~ Age_centered)
-
-ggplot(efdata, aes(x = taskCode, y = fit, color = Age_centered, group = Age_centered)) + 
-    geom_line(size = 1.2) +
-    geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = Age_centered), alpha = 0.3) + 
-    labs(x = "N-back Task Load", y = "Reaction Time", 
-         color = "Age_centered", fill = "Age_centered") +
-    theme_classic() +
-    facet_wrap(~ groupCode)
-
-ef <- effects::effect("taskCode*Age_centered*groupCode", 
-             mod = nback.fmri.RT.group.1z, 
-             xlevels = list(Age_centered = c(-1, 0, 1), groupCode =c(0,1) ))
-# Convert to dataframe
-efdata <- as.data.frame(ef)
-efdata$groupCode <- factor(efdata$groupCode, levels = c(0,1), labels = c("HC", "MDD"))
-# Convert Age values into factor labels
-efdata$Age_centered <- factor(efdata$Age_centered, 
-                     levels = c(-1,0,1), 
-                     labels = c("Low Age (-1 SD)", "Mean Age", "High Age (+1 SD)"))
-
-# Plot the three-way interaction
-ggplot(efdata, aes(x = taskCode, y = fit, color = groupCode, group = groupCode)) + 
-    geom_line(size = 1.2) +
-    geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = groupCode), alpha = 0.3) + 
-    labs(x = "N-back Task Load", y = "Reaction Time(z)", 
-         color = "groupCode", fill = "groupCode") +
-    theme_classic() +
-    facet_wrap(~ Age_centered)
-
-ggplot(efdata, aes(x = taskCode, y = fit, color = Age_centered, group = Age_centered)) + 
-    geom_line(size = 1.2) +
-    geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = Age_centered), alpha = 0.3) + 
-    labs(x = "N-back Task Load", y = "Reaction Time(z)", 
-         color = "Age_centered", fill = "Age_centered") +
-    theme_classic() +
-    facet_wrap(~ groupCode)
-
-nback.fmri.RT.sum.group <- summarySEwithin2(nback.fmri, measurevar = "RT", withinvars = c("level","kind","MDD_Status","Age.Group"), idvar = "subID") %>%
-          mutate(kind = factor(kind, levels = c(0,1), labels = c("non-target","target"))) %>%
-  rename("trial_type" = kind) %>% select(c(level, trial_type, RT, sd, se, ci, MDD_Status, Age.Group)) %>% arrange(level)
-kable(nback.fmri.RT.sum.group, digits = 3) %>% kable_styling()
-
-p.nback.fmri.RT.group <- ggplot(nback.fmri.RT.sum.group, aes(x=level, y=RT, fill=trial_type, group=trial_type)) + 
-  theme(plot.title = element_text(hjust = 0.5), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black")) +
-  geom_bar(stat="identity", position=position_dodge(), alpha=.45, size=1.1) +
-  geom_errorbar(position=position_dodge(width=0.9), aes(ymin=RT-ci, ymax=RT+ci), width=.2, size=1.1) +  
-  xlab("N-Back Level") + ylab("RT (seconds)") + ggtitle("N-Back Performance (RT)") +
-  facet_grid(MDD_Status ~ Age.Group) + scale_fill_brewer(palette = "Paired",  name="Trial Type", labels=c("Non-Target","Target"))
-p.nback.fmri.RT.group
-
-nback.fmri.performance <- nback.fmri %>% group_by(subID, level) %>%
-  summarise(hitRate = (sum(hit)/16), FARate = sum(FA)/48, mRT = mean(RT)) %>%
-  rename(task = "level")
-nback.fmri.performance
-```
-
 ### Cog-ED Choices in scanner
 ```{r coged_fmri, echo=T, warning=FALSE, message=FALSE, cache=TRUE}
 coged.fmri <- coged.fmri %>% filter(trial > 45) %>% filter(choice != 9) %>%
@@ -777,15 +895,12 @@ coged.fmri <- coged.fmri %>% filter(trial > 45) %>% filter(choice != 9) %>%
          choseHard = if_else((choice == 1), 0, 1),
          loadCode = factor(hardTask, levels = c(1,2,3), labels = c(-1,0,1)),
          rewardCode = factor(rewardAmount, levels = c(2,3,4), labels = c(-1,0,1)),
-         bias = if_else((biasType == "high" & choseHard == 1 | biasType == "low" & choseHard == 0), "pro", "anti"))%>%
-  left_join(demo %>% select(sub.id, MDD_Status, Age.Group, Age_centered, groupCode), 
+         bias = if_else((biasType == "high" & choseHard == 1 | biasType == "low" & choseHard == 0), "pro", "anti"))
+
+coged.fmri <- left_join(coged.fmri, demo %>% select(sub.id, MDD_Status, Age.Group, Age_centered, groupCode), 
             by = c("subID" = "sub.id")) %>%
-  mutate(trialCode = factor (trialType, levels = c("low-catch","low-biased","high-biased","high-catch"),labels = c(0,1,2,3))) %>%
-    group_by(subID) %>%
-  mutate(RT_pm = mean(choiceRT,na.rm=TRUE),
-         RT_sd = sd(choiceRT,na.rm=TRUE)) %>%
-  ungroup() %>%
-  mutate(zRT = (choiceRT-RT_pm)/RT_sd)
+  mutate(trialCode = factor (trialType, levels = c("low-catch","low-biased","high-biased","high-catch"),labels = c(0,1,2,3)))
+
 coged.fmri$loadCode <- as.numeric(as.character(coged.fmri$loadCode))
 coged.fmri$rewardCode <- as.numeric(as.character(coged.fmri$rewardCode))
 coged.fmri$trialCode <- as.numeric(as.character(coged.fmri$trialCode))
@@ -852,7 +967,7 @@ summary(coged.hardChoice.group3)
 coged.fmri.prox <- coged.fmri %>%
   mutate(Run = if_else(trial < 82, 1, if_else(trial > 117, 3, 2)),
          Trial = if_else(Run == 1, trial-45, if_else(Run == 2, trial-81, (trial-117))))%>%
-  select(subID, Trial, Run, choice, proximityValue, choseHard,loadCode, rewardCode, Age_centered, groupCode, zRT, choiceRT,MDD_Status) %>% as_tibble()
+  select(subID, Trial, Run, choice, proximityValue, choseHard,loadCode, rewardCode, Age_centered, groupCode, choiceRT,MDD_Status) %>% as_tibble()
 coged.fmri.prox$subID <- as.factor(coged.fmri.prox$subID)
 
 prox.choice <- glmer(data = coged.fmri.prox, choseHard ~ proximityValue + rewardCode + loadCode + (proximityValue|subID), family = "binomial")
@@ -873,10 +988,12 @@ fig.pt <- fig1 + guides(colour=FALSE) + geom_hline(yintercept = 0.5, linetype = 
 fig.pt
 
 #add in colors for different groups
-demo.scan$sub.id <-  as.factor(demo.scan$sub.id)
+demo.factor <- demo
+demo.factor$sub.id <-  as.factor(demo.factor$sub.id)
 preds.group <- preds %>%
-  left_join(demo.scan %>% select(sub.id, MDD_Status, Age.Group), by = c("subID" = "sub.id")) %>%
+  left_join(demo.factor %>% select(sub.id, MDD_Status, Age.Group), by = c("subID" = "sub.id")) %>%
   mutate(group =  factor(paste(Age.Group, MDD_Status, sep = "_")))
+
 # Compute group-level predictions
 preds.agg <- preds.group %>%
   group_by(proximityValue, group) %>%
@@ -938,37 +1055,37 @@ Model: multilevel linear model with subjective value (SV) as the dependent varia
 - Interaction between N-back level and MDD status (MDD vs. HC; H1c).  <br>
 - Covariate: N-back accuracy during familiarization phase
 ```{r H1, warning=F, message=F, cache=F}
-nback.lab.acc <- summarySEwithin2(nback.lab, measurevar = "acc", withinvars = c("level","subID"), idvar = "subID") %>%
-  select(c(subID,level, acc, sd, se, ci)) %>%
-  arrange(subID) %>%
-  mutate(subID=as.integer(as.character(subID)))
-coged.lab.SV <- coged.lab %>%
-  left_join(nback.lab.acc %>% select(subID, level, acc), 
-            by = c("subID" = "subID", "task" = "level"))
+# nback.lab.acc <- summarySEwithin2(nback.lab, measurevar = "acc", withinvars = c("level","subID"), idvar = "subID") %>%
+#   select(c(subID,level, acc, sd, se, ci)) %>%
+#   arrange(subID) %>%
+#   mutate(subID=as.integer(as.character(subID)))
+# coged.lab.SV <- coged.lab %>%
+#   left_join(nback.lab.acc %>% select(subID, level, acc), 
+#             by = c("subID" = "subID", "task" = "level"))
 
-#exploratory: look at young group only
-coged.lab.SV.young <- coged.lab.SV %>% 
-  left_join(demo %>% select(sub.id, Age.Bin, Age), by=c("subID" = "sub.id")) %>%
-  filter(Age.Bin=="35-44")
-SV.young <- lmer(data = coged.lab.SV.young, SV ~ taskCode*Age + groupCode + acc + (1 | subID))
-summary(SV.young)
-coged.lab.SV.young %>%
-    group_by(subID) %>%
-  mutate(Age=first(Age)) %>%
-  ungroup %>%
-  summarise(mean_age=mean(Age),sd_age = sd(Age))
-
-ef <- effects::effect(term="taskCode*Age", xlevels= list(Age=c(39.5641-2.419154, 39.5641+2.419154)), mod=SV.young)
-efdata<-as.data.frame(ef) #convert the effects list to a data frame
-efdata$Age<-as.factor(efdata$Age)
-ggplot(efdata, aes(x=taskCode, y=fit, color=Age,group=Age)) + 
-    geom_point() + 
-    geom_line(size=1.2) +
-    geom_ribbon(aes(ymin=fit-se, ymax=fit+se, fill=Age),alpha=0.3) + 
-    labs(x= "N-back Difficulty", y="Subjective Value", color="Age", fill="Age") +
-    theme_classic() + theme(text=element_text(size=12)) + 
-    scale_y_continuous(breaks = seq(0, 1, by=0.1), limits=c(0.3,0.8)) +
-    scale_x_continuous(breaks = seq(-1, 1, by=0.5), limits=c(-1, 1))
+# #exploratory: look at young group only
+# coged.lab.SV.young <- coged.lab.SV %>% 
+#   left_join(demo %>% select(sub.id, Age.Bin, Age), by=c("subID" = "sub.id")) %>%
+#   filter(Age.Bin=="35-44")
+# SV.young <- lmer(data = coged.lab.SV.young, SV ~ taskCode*Age + groupCode + acc + (1 | subID))
+# summary(SV.young)
+# coged.lab.SV.young %>%
+#     group_by(subID) %>%
+#   mutate(Age=first(Age)) %>%
+#   ungroup %>%
+#   summarise(mean_age=mean(Age),sd_age = sd(Age))
+# 
+# ef <- effects::effect(term="taskCode*Age", xlevels= list(Age=c(39.5641-2.419154, 39.5641+2.419154)), mod=SV.young)
+# efdata<-as.data.frame(ef) #convert the effects list to a data frame
+# efdata$Age<-as.factor(efdata$Age)
+# ggplot(efdata, aes(x=taskCode, y=fit, color=Age,group=Age)) + 
+#     geom_point() + 
+#     geom_line(size=1.2) +
+#     geom_ribbon(aes(ymin=fit-se, ymax=fit+se, fill=Age),alpha=0.3) + 
+#     labs(x= "N-back Difficulty", y="Subjective Value", color="Age", fill="Age") +
+#     theme_classic() + theme(text=element_text(size=12)) + 
+#     scale_y_continuous(breaks = seq(0, 1, by=0.1), limits=c(0.3,0.8)) +
+#     scale_x_continuous(breaks = seq(-1, 1, by=0.5), limits=c(-1, 1))
 
 #H1a
 SV <- lmer(data = coged.lab.SV, SV ~ taskCode + Age_centered + groupCode + acc + (1 | subID))
@@ -1141,7 +1258,7 @@ fig.pt <- fig1 + guides(colour=FALSE) + geom_hline(yintercept = 0.5, linetype = 
 fig.pt
 
 preds.group <- preds %>%
-  left_join(demo.scan %>% select(sub.id, MDD_Status, Age.Group), by = c("subID" = "sub.id"))
+  left_join(demo %>% select(sub.id, MDD_Status, Age.Group), by = c("subID" = "sub.id"))
 
 # Compute group-level predictions
 preds.agg <- preds.group %>%
@@ -1226,68 +1343,68 @@ Model: Linear mixed-effects model predicting reaction time (RT) with proximity²
 #H3a: proximity² did not significantly predict RT
 prox.RT <- lmer(data = coged.fmri.prox, choiceRT ~ I(proximityValue^2) + Age_centered + groupCode + (I(proximityValue^2)|subID))
 summary(prox.RT)
-prox.RT.z <- lmer(data = coged.fmri.prox, zRT ~ I(proximityValue^2) + Age_centered + groupCode + (I(proximityValue^2)|subID))
-summary(prox.RT.z)
+# prox.RT.z <- lmer(data = coged.fmri.prox, zRT ~ I(proximityValue^2) + Age_centered + groupCode + (I(proximityValue^2)|subID))
+# summary(prox.RT.z)
 
 #H2b: In older adults, the negative effect of proximity² on RT is weaker.
 prox.RT.age <- lmer(data = coged.fmri.prox, choiceRT ~ I(proximityValue^2)*Age_centered + groupCode + (I(proximityValue^2)|subID))
 summary(prox.RT.age)
-prox.RT.age.z <- lmer(data = coged.fmri.prox, zRT ~ I(proximityValue^2)*Age_centered + groupCode + (I(proximityValue^2)|subID))
-summary(prox.RT.age.z)
+# prox.RT.age.z <- lmer(data = coged.fmri.prox, zRT ~ I(proximityValue^2)*Age_centered + groupCode + (I(proximityValue^2)|subID))
+# summary(prox.RT.age.z)
 
 #H2c: MDD interaction N.S.
 prox.RT.MDD <- lmer(data = coged.fmri.prox, choiceRT ~ I(proximityValue^2)*groupCode + Age_centered + (I(proximityValue^2)|subID))
 summary(prox.RT.MDD)
-prox.RT.MDD.z <- lmer(data = coged.fmri.prox, zRT ~ I(proximityValue^2)*groupCode + Age_centered + (I(proximityValue^2)|subID))
-summary(prox.RT.MDD.z)
+# prox.RT.MDD.z <- lmer(data = coged.fmri.prox, zRT ~ I(proximityValue^2)*groupCode + Age_centered + (I(proximityValue^2)|subID))
+# summary(prox.RT.MDD.z)
 
 #Exploratory: age & MDD interaction. N.S.
 prox.RT.age.MDD <- lmer(data = coged.fmri.prox, choiceRT ~ I(proximityValue^2)*Age_centered*groupCode + (I(proximityValue^2)|subID))
 summary(prox.RT.age.MDD)
-prox.RT.age.MDD.z <- lmer(data = coged.fmri.prox, zRT ~ I(proximityValue^2)*Age_centered*groupCode + (I(proximityValue^2)|subID))
-summary(prox.RT.age.MDD.z)
+# prox.RT.age.MDD.z <- lmer(data = coged.fmri.prox, zRT ~ I(proximityValue^2)*Age_centered*groupCode + (I(proximityValue^2)|subID))
+# summary(prox.RT.age.MDD.z)
 
-ef <- effects::effect("I(proximityValue^2)*Age_centered*groupCode", 
-             mod = prox.RT.age.MDD.z, 
-             xlevels = list(Age_centered = c(-1, 0, 1), groupCode =c(0,1) ))
-
-# Convert to dataframe
-efdata <- as.data.frame(ef)
-efdata$groupCode <- as.factor(efdata$groupCode)
-
-# Convert Age values into factor labels
-efdata$Age_centered <- factor(efdata$Age_centered, 
-                     levels = c(-1, 0, 1), 
-                     labels = c("Low Age (-1 SD)", "Mean Age", "High Age (+1 SD)"))
-
-# Plot the three-way interaction
-ggplot(efdata, aes(x = I(proximityValue^2), y = fit, color = factor(groupCode, levels = c(0, 1), labels = c("HC", "MDD")), group = groupCode)) + 
-    geom_line(size = 1.2) +
-    geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = factor(groupCode, levels = c(0, 1), labels = c("HC", "MDD"))), alpha = 0.3) + 
-    labs(x = "Decision difficulty (higher value = easier decision)", y = "zRT", 
-         color = "MDD Status", fill = "MDD Status") +
-    theme_classic() +
-    facet_wrap(~ Age_centered)
-
-ggplot(efdata, aes(x = I(proximityValue^2), y = fit, 
-                   color = Age_centered, 
-                   group = Age_centered)) + 
-  geom_line(size = 1.2) +
-  geom_ribbon(aes(ymin = fit - se, ymax = fit + se, 
-                  fill = Age_centered), 
-              alpha = 0.3) + 
-  labs(x = "Decision difficulty (higher value = easier decision)", 
-       y = "zRT", 
-       color = "Age", 
-       fill = "Age") +
-  theme_classic() +
-  facet_wrap(~ factor(groupCode, levels = c(0, 1), labels = c("HC", "MDD")))+ 
-  scale_y_continuous(
-    limits = c(-0.25, 0.25)
-  ) +
-   scale_x_continuous(
-    limits = c(-1, 1)
-  )
+# ef <- effects::effect("I(proximityValue^2)*Age_centered*groupCode", 
+#              mod = prox.RT.age.MDD.z, 
+#              xlevels = list(Age_centered = c(-1, 0, 1), groupCode =c(0,1) ))
+# 
+# # Convert to dataframe
+# efdata <- as.data.frame(ef)
+# efdata$groupCode <- as.factor(efdata$groupCode)
+# 
+# # Convert Age values into factor labels
+# efdata$Age_centered <- factor(efdata$Age_centered, 
+#                      levels = c(-1, 0, 1), 
+#                      labels = c("Low Age (-1 SD)", "Mean Age", "High Age (+1 SD)"))
+# 
+# # Plot the three-way interaction
+# ggplot(efdata, aes(x = I(proximityValue^2), y = fit, color = factor(groupCode, levels = c(0, 1), labels = c("HC", "MDD")), group = groupCode)) + 
+#     geom_line(size = 1.2) +
+#     geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = factor(groupCode, levels = c(0, 1), labels = c("HC", "MDD"))), alpha = 0.3) + 
+#     labs(x = "Decision difficulty (higher value = easier decision)", y = "zRT", 
+#          color = "MDD Status", fill = "MDD Status") +
+#     theme_classic() +
+#     facet_wrap(~ Age_centered)
+# 
+# ggplot(efdata, aes(x = I(proximityValue^2), y = fit, 
+#                    color = Age_centered, 
+#                    group = Age_centered)) + 
+#   geom_line(size = 1.2) +
+#   geom_ribbon(aes(ymin = fit - se, ymax = fit + se, 
+#                   fill = Age_centered), 
+#               alpha = 0.3) + 
+#   labs(x = "Decision difficulty (higher value = easier decision)", 
+#        y = "zRT", 
+#        color = "Age", 
+#        fill = "Age") +
+#   theme_classic() +
+#   facet_wrap(~ factor(groupCode, levels = c(0, 1), labels = c("HC", "MDD")))+ 
+#   scale_y_continuous(
+#     limits = c(-0.25, 0.25)
+#   ) +
+#    scale_x_continuous(
+#     limits = c(-1, 1)
+#   )
 ```
 
 A **linear mixed-effects model (LMM)** was fit using **REML estimation** to examine the effects of **proximity²**, **age**, and **MDD status (groupCode: MDD vs. HC)** on **reaction time (RT)**.
