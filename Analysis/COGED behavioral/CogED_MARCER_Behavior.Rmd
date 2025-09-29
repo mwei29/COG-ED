@@ -157,7 +157,7 @@ demo %>% select(Ethnicity) %>%
 ```
 
 ### Demoographic summary with 134 participants
-```{r Demo134, echo=F, warning=FALSE, message=FALSE,cache=F}
+```{r Demo134, echo=F, warning=FALSE, message=FALSE,cache=T}
 #Age
 demo %>%
   group_by(Age.Group) %>%
@@ -339,6 +339,54 @@ ggplot(efdata, aes(x = taskCode, y = fit, color = Age_centered, group = Age_cent
   facet_wrap(~ groupCode) + 
   scale_x_continuous(breaks = 0:3, labels = 1:4)
 
+# Follow up: age effect in MDD-only & HC-only
+nback.all.clean.MDDonly <- nback.all.clean %>% 
+  filter(MDD_Status == "MDD")
+nback.all.clean.HConly <- nback.all.clean %>% 
+  filter(MDD_Status == "HC")
+nback.all.acc.MDDonly <- glmer(data = nback.all.clean.MDDonly, acc ~ taskCode*Age_centered + sessionCode + (1 + taskCode | subID), family = "binomial")
+summary(nback.all.acc.MDDonly)
+nback.all.acc.HConly <- glmer(data = nback.all.clean.HConly, acc ~ taskCode*Age_centered + sessionCode + (1 + taskCode | subID), family = "binomial")
+summary(nback.all.acc.HConly)
+#visualize [MDD]
+ef <- effects::effect("taskCode*Age_centered", 
+             mod = nback.all.acc.MDDonly, 
+             xlevels = list(Age_centered = c(-1, 0, 1)))
+# Convert to dataframe
+efdata <- as.data.frame(ef)
+# Convert Age values into factor labels
+efdata$Age_centered <- factor(efdata$Age_centered, 
+                     levels = c(-1,0,1), 
+                     labels = c("Low Age (-1 SD)", "Mean Age", "High Age (+1 SD)"))
+
+# Plot the two-way interaction
+ggplot(efdata, aes(x = taskCode, y = fit, color = Age_centered, group = Age_centered)) + 
+  geom_line(size = 1.2) +
+  geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = Age_centered), alpha = 0.3) + 
+  labs(x = "N-back Task Load", y = "Accuracy [MDD only]", 
+       color = "Age_centered", fill = "Age_centered") +
+  theme_classic() +
+  scale_x_continuous(breaks = 0:3, labels = 1:4)
+
+#visualize [HC]
+ef <- effects::effect("taskCode*Age_centered", 
+             mod = nback.all.acc.HConly, 
+             xlevels = list(Age_centered = c(-1, 0, 1)))
+# Convert to dataframe
+efdata <- as.data.frame(ef)
+# Convert Age values into factor labels
+efdata$Age_centered <- factor(efdata$Age_centered, 
+                     levels = c(-1,0,1), 
+                     labels = c("Low Age (-1 SD)", "Mean Age", "High Age (+1 SD)"))
+
+# Plot the two-way interaction
+ggplot(efdata, aes(x = taskCode, y = fit, color = Age_centered, group = Age_centered)) + 
+  geom_line(size = 1.2) +
+  geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = Age_centered), alpha = 0.3) + 
+  labs(x = "N-back Task Load", y = "Accuracy [HC only]", 
+       color = "Age_centered", fill = "Age_centered") +
+  theme_classic() +
+  scale_x_continuous(breaks = 0:3, labels = 1:4)
 
 #RT
 #RT; as expected, RT increases as nback gets harder
@@ -385,6 +433,12 @@ ggplot(efdata, aes(x = taskCode, y = fit, color = Age_centered, group = Age_cent
   theme_classic() +
   facet_wrap(~ groupCode) + 
   scale_x_continuous(breaks = 0:3, labels = 1:4)
+
+# Follow up: age effect in MDD-only & HC-only
+nback.all.RT.MDDonly <- lmer(data = nback.all.clean.MDDonly, RT ~ taskCode*Age_centered + sessionCode + (1 + taskCode | subID))
+summary(nback.all.RT.MDDonly)
+nback.all.RT.HConly <- lmer(data = nback.all.clean.HConly, RT ~ taskCode*Age_centered + sessionCode + (1 + taskCode | subID), control = lmerControl(optimizer = "bobyqa"))
+summary(nback.all.RT.HConly)
 ```
 
 
@@ -770,7 +824,7 @@ nback.fmri.performance
 
 
 ### COGED: SV plot
-``` {r CogED_SV_Plot, eval=T, echo=F, warning = F, message = F, cache=F}
+``` {r CogED_SV_Plot, eval=T, echo=F, warning = F, message = F, cache=T}
 #summary of data for plotting
 coged.lab.sum <- summarySEwithin2(coged.lab, measurevar = "SV", withinvars = c("task","MDD_Status","Age.Group"), idvar = "subID")
 #Plotting
@@ -928,7 +982,7 @@ p.frust
 ```
 
 ### Cog-ED Choices in scanner
-```{r coged_fmri, eval = F, echo=F, warning=FALSE, message=FALSE, cache=F}
+```{r coged_fmri, eval = F, echo=F, warning=FALSE, message=FALSE, cache=T}
 coged.fmri.hardChoice <- coged.fmri %>% select(subID, trialType, choseHard, MDD_Status,Age.Group) %>% 
   group_by(subID, trialType, MDD_Status,Age.Group) %>%
   summarise(n_choice = n(), n_hardChoice = sum(choseHard)) %>%
@@ -1109,7 +1163,7 @@ Model: multilevel linear model with subjective value (SV) as the dependent varia
 - Interaction between N-back level and age (H1b). <br>
 - Interaction between N-back level and MDD status (MDD vs. HC; H1c).  <br>
 - Covariate: N-back accuracy during familiarization phase
-```{r H1, warning=F, message=F, cache=F}
+```{r H1, warning=F, message=F, cache=T}
 #H1a
 SV <- lmer(data = coged.lab.SV, SV ~ taskCode + Age_centered + groupCode + acc + (1 + taskCode | subID))
 summary(SV)
@@ -1188,11 +1242,16 @@ ggplot(efdata, aes(x = taskCode, y = fit,
   facet_wrap(~ factor(groupCode, levels = c(0, 1), labels = c("HC", "MDD")))+ 
   scale_x_continuous(breaks = -1:1, labels = 2:4)
 
-# Follow up analysis: only look at MDD participants, what's the age x load interaction?
+# Follow up analysis: only look at MDD/HC participants, what's the age x load interaction?
 coged.sv.MDDonly <- coged.lab.SV %>% 
   filter(MDD_Status == "MDD")
+coged.sv.HConly <- coged.lab.SV %>% 
+  filter(MDD_Status == "HC")
 SV.MDDonly.age <- lmer(data = coged.sv.MDDonly, SV ~ taskCode*Age_centered + acc + (1 + taskCode | subID))
 summary(SV.MDDonly.age)
+SV.HConly.age <- lmer(data = coged.sv.HConly, SV ~ taskCode*Age_centered + acc + (1 + taskCode | subID))
+summary(SV.HConly.age)
+
 ef <- effects::effect(term="taskCode*Age_centered", xlevels= list(Age_centered=c(-1,0, 1)), mod=SV.MDDonly.age)
 efdata<-as.data.frame(ef) #convert the effects list to a data frame
 efdata$Age_centered <- factor(efdata$Age_centered, 
@@ -1202,12 +1261,26 @@ ggplot(efdata, aes(x=taskCode, y=fit, color=Age_centered,group=Age_centered)) +
     geom_point() + 
     geom_line(size=1.2) +
     geom_ribbon(aes(ymin=fit-se, ymax=fit+se, fill=Age_centered),alpha=0.3) + 
-    labs(x= "N-back Task Load", y="Subjective Value", color="Age_centered", fill="Age_centered") +
+    labs(x= "N-back Task Load", y="Subjective Value [MDD only]", color="Age_centered", fill="Age_centered") +
     theme_classic() + theme(text=element_text(size=12)) + 
     scale_y_continuous(breaks = seq(0, 1, by=0.1), limits=c(0.3,0.8)) +
     scale_x_continuous(breaks = -1:1, labels = 2:4)
 
-# Follow up analysis: accuracy three way interaction predicting SV, but I found this problematic since accuracy is related to task load and task load is related to SV
+ef <- effects::effect(term="taskCode*Age_centered", xlevels= list(Age_centered=c(-1,0, 1)), mod=SV.HConly.age)
+efdata<-as.data.frame(ef) #convert the effects list to a data frame
+efdata$Age_centered <- factor(efdata$Age_centered, 
+                     levels = c(-1, 0, 1), 
+                     labels = c("Low Age (-1 SD)", "Mean Age", "High Age (+1 SD)"))
+ggplot(efdata, aes(x=taskCode, y=fit, color=Age_centered,group=Age_centered)) + 
+    geom_point() + 
+    geom_line(size=1.2) +
+    geom_ribbon(aes(ymin=fit-se, ymax=fit+se, fill=Age_centered),alpha=0.3) + 
+    labs(x= "N-back Task Load", y="Subjective Value [HC only]", color="Age_centered", fill="Age_centered") +
+    theme_classic() + theme(text=element_text(size=12)) + 
+    scale_y_continuous(breaks = seq(0, 1, by=0.1), limits=c(0.3,0.8)) +
+    scale_x_continuous(breaks = -1:1, labels = 2:4)
+
+# Follow up analysis: accuracy three way interaction predicting SV
 SV.acc.age <- lmer(data = coged.lab.SV, SV ~ taskCode + groupCode + acc*Age_centered + (1 + taskCode | subID))
 summary(SV.acc.age)
 SV.acc.MDD <- lmer(data = coged.lab.SV, SV ~ taskCode + Age_centered + acc*groupCode + (1 + taskCode | subID))
@@ -1293,27 +1366,6 @@ ggplot(efdata, aes(x=taskCode, y=fit, color=acc,group=acc)) +
   scale_x_continuous(breaks = -1:1, labels = 2:4)
 ```
 
-A linear mixed-effects model examined the effects of **N-back level**, **age (cont.)**, and **MDD status (HC:0, MDD:1)** on **SV**, with **N-back Accuracy** being covariate.
-
-### H1a: Main Effect
-- **N-back level significantly predicted SV** (*β* = **-0.1059**, *t* = **-11.79**, *p* < .001), confirming the **cognitive effort discounting effect**, where **higher N-back levels led to lower subjective value**.
-- **Accuracy (acc) was a significant positive predictor of SV** (*β* = **0.3315**, *t* = **3.43**, *p* < .001), suggesting that **higher task accuracy was associated with higher subjective value**.
-- **Age** (*β* = **-0.00002**, *t* = **-0.009**, *n.s.**) and **MDD status** (*β* = **0.0066**, *t* = **0.138**, *n.s.**) are **non-significant predictors of SV**.
-
-### H1b & H1c: Two-Way Interactions
-1. **N-back level × Age Interaction (H1b)**
-   - The **task difficulty × age** interaction was **marginally significant** (*β* = **0.00134**, *t* = **1.88**, *p* = .06).
-   - the trend suggests that as **age increases, the negative effect of N-back level on SV diminishes**.
-
-2. **N-back level × MDD Interaction (H1c)**
-   - In the two-way model, the interaction is marginal (*β* = **0.0277**, *t* = **1.80**, *p* = .07), suggesting that **MDD individuals may discount effort less steeply than controls**, though this effect is weaker when accounting for accuracy.
-
-### Exploratory Analysis: Three-Way Interaction 
-A **three-way interaction (N-back level × Age × MDD status) was significant** (*β* = **0.0044**, *t* = **3.06**, *p* < .01), meaning that **the relationship between MDD and task difficulty depends on age**.
-
-- In **younger adults**, MDD individuals **discounted effort more steeply** than controls.
-- In **older adults**, the difference between MDD and controls **diminished**.
-
 ## H2: Proximity Effect on Choice Behavior
 
 Model: Logistic regression predicting choice of the higher-effort option as a function of proximity. 
@@ -1322,7 +1374,7 @@ Model: Logistic regression predicting choice of the higher-effort option as a fu
 - Main effect of proximity (H2a). <br>
 - Interaction between proximity and age (H2b). <br>
 - Interaction between proximity and MDD status (H2c). <br>
-```{r H2, warning=F, message=F, cache=F}
+```{r H2, warning=F, message=F, cache=T}
 #H2a: as hypothesized: As proximity increases, people are biased to choose the harder option.
 prox.choice <- glmer(data = coged.fmri.prox, choseHard ~ proximityValue + Age_centered + groupCode + (1 + proximityValue|subID), family = "binomial")
 summary(prox.choice)
@@ -1398,33 +1450,16 @@ summary(prox.choice.age.MDD)
 prox.choice.age.MDD1 <- glmer(data = coged.fmri.prox, choseHard ~ proximityValue*Age_centered*groupCode + rewardCode + loadCode + (1+proximityValue|subID), control = glmerControl(optimizer = "bobyqa"), family = "binomial")
 summary(prox.choice.age.MDD1)
 
-# Follow up analysis: age interaction in only MDD group
+# Follow up analysis: age interaction in only MDD and HC group
 prox.choice.MDDonly <- coged.fmri.prox %>% 
   filter(MDD_Status == "MDD")
-prox.choice.age.MDDonly <- glmer(data = coged.fmri.prox, choseHard ~ proximityValue*Age_centered + rewardCode + loadCode+ (1+proximityValue|subID), control = glmerControl(optimizer = "bobyqa"), family = "binomial")
+prox.choice.HConly <- coged.fmri.prox %>% 
+  filter(MDD_Status == "HC")
+prox.choice.age.MDDonly <- glmer(data = prox.choice.MDDonly, choseHard ~ proximityValue*Age_centered + rewardCode + loadCode+ (1+proximityValue|subID), control = glmerControl(optimizer = "bobyqa"), family = "binomial")
 summary(prox.choice.age.MDDonly)
+prox.choice.age.HConly <- glmer(data = prox.choice.HConly, choseHard ~ proximityValue*Age_centered + rewardCode + loadCode+ (1+proximityValue|subID), control = glmerControl(optimizer = "bobyqa"), family = "binomial")
+summary(prox.choice.age.HConly)
 ```
-
-A **generalized linear mixed-effects model** (GLMM) with a **binomial logit link** was used to examine the effects of **proximity value**, **age**, and **MDD status (MDD vs. HC)** on the likelihood of choosing the harder option.
-
-### H2a: Main Effect of Proximity Value
-- **Proximity value significantly predicted the likelihood of choosing the harder option** (Estimate = **2.99**, z = **15.947**, p < .001), suggesting that **as proximity value increases, participants are more likely to choose the harder option**.
-
-- **Age (Estimate = -0.002, z = -0.117, n.s.)** and **MDD status (Estimate = -0.034, z = -0.084, n.s.)** were **not significant predictors** of choosing the harder option.
-
-### H2b & H2c: Two-Way Interactions
-1. **Proximity Value × Age Interaction (H1b)**
-   - The interaction between **proximity value and age** was **significant** (Estimate = **-0.0543**, z = **-3.310**, p = **.0009**).
-   - This suggests that as **age increases, the effect of proximity value on choosing the harder option decreases**, indicating that **older adults may be less influenced by proximity value when making effort-based decisions**.
-
-2. **Proximity Value × MDD Interaction (H2c)**
-   - The interaction between **proximity value and MDD status** was **not significant** (Estimate = **-0.4819**, z = **-1.308**, p = .191).
-   - This suggests that **MDD status does not significantly moderate the effect of proximity value on choosing the harder option**.
-
-### Exploratory Analysis: Three-Way Interaction 
-A model including a **three-way interaction (Proximity Value × Age × MDD Status)** was tested to investigate whether the **influence of MDD on effort-based decisions varies by age**.
-
-- **The three-way interaction was not significant** (Estimate = **-0.025**, z = **-0.781**, p = .435), indicating that **the relationship between proximity value, age, and MDD does not significantly impact choice behavior**.
 
 ## H3: Decision Difficulty proximity² on RT 
 
@@ -1434,7 +1469,7 @@ Model: Linear mixed-effects model predicting reaction time (RT) with proximity²
 - Main effect of proximity² (H2a). <br>
 - Interaction between proximity² and age (H3b).  <br>
 - Interaction between proximity² and MDD status (H2c). <br>
-```{r H3, warning=F, message=F, cache=F}
+```{r H3, warning=F, message=F, cache=T}
 #H3a: proximity² did not significantly predict RT
 prox.RT <- lmer(data = coged.fmri.prox, choiceRT ~ I(proximityValue^2) + Age_centered + groupCode + (I(proximityValue^2)|subID))
 summary(prox.RT)
@@ -1459,6 +1494,12 @@ summary(prox.RT.age.MDD)
 # prox.RT.age.MDD.z <- lmer(data = coged.fmri.prox, zRT ~ I(proximityValue^2)*Age_centered*groupCode + (I(proximityValue^2)|subID))
 # summary(prox.RT.age.MDD.z)
 
+#Look at MDD and HC separately; age effect significant in MDD, not in healthy controls
+prox.RT.age.MDDonly <- lmer(data = prox.choice.MDDonly, choiceRT ~ I(proximityValue^2)*Age_centered + (I(proximityValue^2)|subID))
+summary(prox.RT.age.MDDonly)
+prox.RT.age.HConly <- lmer(data = prox.choice.HConly, choiceRT ~ I(proximityValue^2)*Age_centered + (I(proximityValue^2)|subID))
+summary(prox.RT.age.HConly)
+
 #Visualize
 d.prox.RT.plot <- get_datagrid(prox.RT, by = c("proximityValue","subID"), preserve_range = TRUE)
 preds <- estimate_relation(prox.RT, include_random = T, data = d.prox.RT.plot)
@@ -1471,73 +1512,104 @@ fig.RT <- ggplot(fixed_pred, aes(x=proximityValue, y=Predicted)) +
   geom_line(data = fixed_pred, aes(x = proximityValue, y = Predicted), linewidth = 2) +
     geom_line(data = preds, aes(x=proximityValue, y=Predicted, group=subID, colour = factor(subID)), alpha=0.5) +
  theme_classic() + labs(x= "Decision Difficulty", y="Reaction Time")
-fig.3b <- fig.RT + guides(colour=F)
-fig.3b
+fig.decRT.all <- fig.RT + guides(colour=F)
+fig.decRT.all
 
-# ef <- effects::effect("I(proximityValue^2)*Age_centered*groupCode", 
-#              mod = prox.RT.age.MDD.z, 
-#              xlevels = list(Age_centered = c(-1, 0, 1), groupCode =c(0,1) ))
-# 
-# # Convert to dataframe
-# efdata <- as.data.frame(ef)
-# efdata$groupCode <- as.factor(efdata$groupCode)
-# 
-# # Convert Age values into factor labels
-# efdata$Age_centered <- factor(efdata$Age_centered, 
-#                      levels = c(-1, 0, 1), 
-#                      labels = c("Low Age (-1 SD)", "Mean Age", "High Age (+1 SD)"))
-# 
-# # Plot the three-way interaction
-# ggplot(efdata, aes(x = I(proximityValue^2), y = fit, color = factor(groupCode, levels = c(0, 1), labels = c("HC", "MDD")), group = groupCode)) + 
-#     geom_line(size = 1.2) +
-#     geom_ribbon(aes(ymin = fit - se, ymax = fit + se, fill = factor(groupCode, levels = c(0, 1), labels = c("HC", "MDD"))), alpha = 0.3) + 
-#     labs(x = "Decision difficulty (higher value = easier decision)", y = "zRT", 
-#          color = "MDD Status", fill = "MDD Status") +
-#     theme_classic() +
-#     facet_wrap(~ Age_centered)
-# 
-# ggplot(efdata, aes(x = I(proximityValue^2), y = fit, 
-#                    color = Age_centered, 
-#                    group = Age_centered)) + 
-#   geom_line(size = 1.2) +
-#   geom_ribbon(aes(ymin = fit - se, ymax = fit + se, 
-#                   fill = Age_centered), 
-#               alpha = 0.3) + 
-#   labs(x = "Decision difficulty (higher value = easier decision)", 
-#        y = "zRT", 
-#        color = "Age", 
-#        fill = "Age") +
-#   theme_classic() +
-#   facet_wrap(~ factor(groupCode, levels = c(0, 1), labels = c("HC", "MDD")))+ 
-#   scale_y_continuous(
-#     limits = c(-0.25, 0.25)
-#   ) +
-#    scale_x_continuous(
-#     limits = c(-1, 1)
-#   )
+#Trying new graph
+age_lvls   <- c(-1, 0, 1)
+age_labels <- c("Low Age (-1 SD)", "Mean Age", "High Age (+1 SD)")
+
+# Build a grid that spans proximityValue and fixes Age_centered at -1, 0, +1 SD
+grid_age <- get_datagrid(
+  prox.RT.age,
+  by = list(
+    proximityValue = seq(min(coged.fmri.prox$proximityValue, na.rm = TRUE),
+                         max(coged.fmri.prox$proximityValue, na.rm = TRUE),
+                         length.out = 100),
+    Age_centered   = age_lvls
+  ),
+  preserve_range = TRUE
+)
+
+# Get fixed-effect predictions at those age levels (averaging over other covariates)
+pred_fixed_age <- estimate_relation(
+  prox.RT.age,
+  at   = c("proximityValue", "Age_centered"),
+  data = grid_age
+)
+
+# Turn age into a labeled factor for plotting
+pred_fixed_age$Age_level <- factor(pred_fixed_age$Age_centered,
+                                   levels = age_lvls,
+                                   labels = age_labels)
+
+# Plot: three average lines (with CIs) by age level
+fig.decRT.age <- ggplot(pred_fixed_age, aes(x = proximityValue, y = Predicted, color = Age_level)) +
+  geom_line(linewidth = 1.6) +
+  theme_classic() +
+  labs(x = "Proximity",
+       y = "Reaction Time",
+       color = "Age",
+       fill  = "Age") +
+  guides(color = guide_legend(override.aes = list(linewidth = 2)))
+fig.decRT.age
+
+#plotting age effect in just MDD
+grid_age <- get_datagrid(
+  prox.RT.age.MDDonly,
+  by = list(
+    proximityValue = seq(min(coged.fmri.prox$proximityValue, na.rm = TRUE),
+                         max(coged.fmri.prox$proximityValue, na.rm = TRUE),
+                         length.out = 100),
+    Age_centered   = age_lvls
+  ),
+  preserve_range = TRUE
+)
+pred_fixed_age <- estimate_relation(
+  prox.RT.age.MDDonly,
+  at   = c("proximityValue", "Age_centered"),
+  data = grid_age
+)
+pred_fixed_age$Age_level <- factor(pred_fixed_age$Age_centered,
+                                   levels = age_lvls,
+                                   labels = age_labels)
+fig.decRT.age.MDDonly <- ggplot(pred_fixed_age, aes(x = proximityValue, y = Predicted, color = Age_level)) +
+  geom_line(linewidth = 1.6) +
+  theme_classic() +
+  labs(x = "Proximity",
+       y = "Reaction Time [MDD only]",
+       color = "Age",
+       fill  = "Age") +
+  guides(color = guide_legend(override.aes = list(linewidth = 2)))
+fig.decRT.age.MDDonly
+
+#plotting age effect in just HC
+grid_age <- get_datagrid(
+  prox.RT.age.HConly,
+  by = list(
+    proximityValue = seq(min(coged.fmri.prox$proximityValue, na.rm = TRUE),
+                         max(coged.fmri.prox$proximityValue, na.rm = TRUE),
+                         length.out = 100),
+    Age_centered   = age_lvls
+  ),
+  preserve_range = TRUE
+)
+pred_fixed_age <- estimate_relation(
+  prox.RT.age.HConly,
+  at   = c("proximityValue", "Age_centered"),
+  data = grid_age
+)
+pred_fixed_age$Age_level <- factor(pred_fixed_age$Age_centered,
+                                   levels = age_lvls,
+                                   labels = age_labels)
+fig.decRT.age.HConly <- ggplot(pred_fixed_age, aes(x = proximityValue, y = Predicted, color = Age_level)) +
+  geom_line(linewidth = 1.6) +
+  theme_classic() +
+  labs(x = "Proximity",
+       y = "Reaction Time [HC only]",
+       color = "Age",
+       fill  = "Age") +
+  guides(color = guide_legend(override.aes = list(linewidth = 2)))
+fig.decRT.age.HConly
 ```
 
-A **linear mixed-effects model (LMM)** was fit using **REML estimation** to examine the effects of **proximity²**, **age**, and **MDD status (groupCode: MDD vs. HC)** on **reaction time (RT)**.
-
-### H3a: Main Effect of Proximity²
-- **In the model without interactions, proximity² did not significantly predict RT** (Estimate = **-0.0418**, t = **-1.102**).
-- However, **when age was included as an interaction term, proximity² became a significant predictor** (Estimate = **-0.6280**, t = **-3.448**).
-- This suggests that **as proximity² increases, RT decreases**
-
-### H3b: Proximity² × Age Interaction
-- The **interaction between proximity² and age was significant** (Estimate = **0.0111**, t = **3.284**).
-- This suggests that **the negative effect of proximity² on RT is weaker for older adults**.
-- **Older adults may be less sensitive to proximity-related decision biases, taking more time even when proximity is high.**
-
-### H3c: Proximity² × MDD Interaction
-- The **interaction between proximity² and MDD status was non-significant** (Estimate = **0.0399**, t = **0.524**).
-- This suggests that **MDD status does not meaningfully moderate the effect of proximity² on RT**, meaning **individuals with and without MDD show similar reaction time patterns in response to proximity.**
-
-### Exploratory Three-Way Interaction: Proximity² × Age × MDD Status
-- A **three-way interaction between proximity², age, and MDD status was not significant** (Estimate = **-0.0003**, t = **-0.096**).
-- This suggests that **the interaction between proximity² and age does not differ between MDD and HC groups**, meaning that **age-related differences in proximity-based RT effects are similar across clinical and healthy populations.**
-
-
-### Random Effects
-- **Significant variability was observed across participants (subID)**.
-- **The random slope of proximity² was negatively correlated with the intercept (-0.55 to -0.82 across models)**, suggesting that **individuals with higher baseline RT show weaker proximity² effects.**
