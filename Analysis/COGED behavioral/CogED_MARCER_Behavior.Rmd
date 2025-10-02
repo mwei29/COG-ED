@@ -861,6 +861,43 @@ average.SV <- coged.lab %>% select(subID, SV, MDD_Status, Age.Group) %>%
 average.SV
 ```
 
+### COGED: Proportion of Hard Choice
+```{r coged_fmri_hardchoice, eval = T, echo=F, warning=FALSE, message=FALSE, cache=T}
+(coged.fmri.hardChoice <- coged.fmri %>% select(subID, trialType, choseHard, MDD_Status,Age.Group) %>% 
+  group_by(subID, trialType, MDD_Status,Age.Group) %>%
+  summarise(n_choice = n(), n_hardChoice = sum(choseHard)) %>%
+  mutate(propHard = n_hardChoice/n_choice))
+ 
+(coged.fmri.hardChoice.subj <- coged.fmri %>% select(subID, trialType, choseHard) %>% group_by(subID) %>%
+   summarise(n_choice = n(), n_hardChoice = sum(choseHard)) %>%
+   mutate(propHard = n_hardChoice/n_choice))
+# The general proportion of hard choice is 0.49.
+(coged.fmri.hardChoice.subj.sum <- coged.fmri.hardChoice.subj %>%
+  summarise(meanPropHard = mean(propHard), sdPropHard = sd(propHard)))
+# by group
+(coged.fmri.hardChoice.group <- coged.fmri.hardChoice %>%
+   group_by(MDD_Status,Age.Group) %>%
+  summarise(meanPropHard = mean(propHard), sdPropHard = sd(propHard)))
+# Visualize
+ggplot(coged.fmri.hardChoice.group,
+       aes(x = Age.Group, y = meanPropHard, 
+           fill = MDD_Status)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.9)) +
+  geom_errorbar(aes(ymin = meanPropHard - sdPropHard,
+                    ymax = meanPropHard + sdPropHard),
+                width = 0.2,
+                position = position_dodge(width = 0.9)) +
+  scale_x_discrete(labels = c("MA" = "35–54 y/o", "OA" = "55–74 y/o")) +
+  scale_y_continuous(limits = c(0, 1)) +
+  scale_fill_manual(values = c("HC" = "#1f78b4",   # blue
+                               "MDD" = "#ffcc00")) + # yellow
+  labs(x = "Age Group",
+       y = "Mean Proportion of Choosing High-Effort Option",
+       fill = "MDD Status",
+       title = "Hard Choice Proportion by Age and MDD Status") +
+  theme_minimal(base_size = 14)
+```
+  
 ## Other analyses
 
 ### Self-Report Questionnaires
@@ -983,18 +1020,6 @@ p.frust
 
 ### Cog-ED Choices in scanner
 ```{r coged_fmri, eval = F, echo=F, warning=FALSE, message=FALSE, cache=T}
-coged.fmri.hardChoice <- coged.fmri %>% select(subID, trialType, choseHard, MDD_Status,Age.Group) %>% 
-  group_by(subID, trialType, MDD_Status,Age.Group) %>%
-  summarise(n_choice = n(), n_hardChoice = sum(choseHard)) %>%
-  mutate(propHard = n_hardChoice/n_choice)
- 
-coged.fmri.hardChoice.subj <- coged.fmri %>% select(subID, trialType, choseHard) %>% group_by(subID) %>%
-   summarise(n_choice = n(), n_hardChoice = sum(choseHard)) %>%
-   mutate(propHard = n_hardChoice/n_choice)
-# The general proportion of hard choice is 0.49.
-coged.fmri.hardChoice.subj.sum <- coged.fmri.hardChoice.subj %>%
-  summarise(meanPropHard = mean(propHard), sdPropHard = sd(propHard))
- 
 #Summary by group
 coged.prophard.sum <- summarySEwithin2(data = coged.fmri.hardChoice, measurevar = "propHard", withinvars = c("trialType","MDD_Status","Age.Group"), idvar = "subID")
 coged.prophard.sum$trialType <- factor(coged.prophard.sum$trialType, levels = c("high-catch", "high-biased", "low-biased", "low-catch"), 
@@ -1511,7 +1536,7 @@ fig.RT <- ggplot(fixed_pred, aes(x=proximityValue, y=Predicted)) +
   geom_ribbon(data = fixed_pred, aes(x = proximityValue, ymin = CI_low, ymax = CI_high), alpha = 0.5) +
   geom_line(data = fixed_pred, aes(x = proximityValue, y = Predicted), linewidth = 2) +
     geom_line(data = preds, aes(x=proximityValue, y=Predicted, group=subID, colour = factor(subID)), alpha=0.5) +
- theme_classic() + labs(x= "Decision Difficulty", y="Reaction Time")
+ theme_classic() + labs(x= "Proximity", y="Reaction Time")
 fig.decRT.all <- fig.RT + guides(colour=F)
 fig.decRT.all
 
